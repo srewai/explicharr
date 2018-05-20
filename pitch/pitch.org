@@ -1,0 +1,250 @@
+#+TITLE: eti
+#+DATE: \today
+#+OPTIONS: title:t date:t author:nil email:nil
+#+STARTUP: beamer
+#+LaTeX_CLASS: beamer
+#+LATEX_HEADER: \setbeamertemplate{footline}[frame number]
+#+LATEX_HEADER: \usepackage{tikz-cd}
+#+LATEX_HEADER: \DeclareMathOperator{\eti}{eti}
+#+LATEX_HEADER: \DeclareMathOperator{\free}{free}
+#+LATEX_HEADER: \DeclareMathOperator{\express}{express}
+#+LATEX_HEADER: \DeclareMathOperator{\interpret}{interpret}
+* team
+** team                                                             :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+| Kuan Yu             | kuanyu@uni-potsdam.de        |
+|                     |                              |
+| Maya Angelova       | maya.angelova@protonmail.com |
+|                     |                              |
+| Philipp Schoneville | schoneville@uni-potsdam.de   |
+* data
+** wikipedia datasets[fn:1]                                         :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- aligned normal vs simple wikipedia content
+*** version 1.0                                                     :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- with train, tune, test splits
+*** version 2.0                                                     :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- no splits
+- updated
+- more data
+** version 2.0 document-aligned                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- 32 documents empty in normal or simple
+*** simple                                                          :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+|        | min |   max |   mean |
+|--------+-----+-------+--------|
+| =sent= |   1 |   916 |   8.46 |
+| =word= |   0 | 10486 | 153.50 |
+| =char= |   1 | 53497 | 806.37 |
+*** normal                                                          :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+|        | min |    max |    mean |
+|--------+-----+--------+---------|
+| =sent= |   1 |   1938 |   64.52 |
+| =word= |   0 |  32026 | 1638.02 |
+| =char= |   1 | 185194 | 8995.47 |
+** version 2.0 sentence-aligned                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- 167,689 aligned sentence pairs
+*** simple                                                          :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+|        | min |  max |   mean |
+|--------+-----+------+--------|
+| =word= |   1 |  192 |  22.86 |
+| =char= |  17 | 2613 | 122.08 |
+*** normal                                                          :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+|        | min |  max |   mean |
+|--------+-----+------+--------|
+| =word= |   1 |  236 |  25.55 |
+| =char= |  17 | 2404 | 139.55 |
+** version 2.0 sentence-aligned                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+|              |  normal |  simple |
+|--------------+---------+---------|
+| =#word=      | 4284135 | 3832824 |
+| =#word-type= |  162491 |  147078 |
+| =#non-hapax= |   78494 |   71029 |
+| =#char-type= |     133 |     134 |
+- unique char =[= in sentence 152,563 did not unnormalized to =-LRB-= due to tokenization error
+* model
+** character-level modelling: byte-net[fn:2]                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- more robust
+  + no =UNKNOWN=
+  + no special treatment for numbers
+  + may learn morphology
+- no tokenizer required
+- easier applicable to other languages
+** attention: transformer-net[fn:3]                                 :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- vs recurrent
+  + faster training
+  + no information bottleneck
+- vs convolution
+  + no limited input field
+** concept art: the category of languages \(L\)                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[row sep=huge]
+    & L_{0} \ar{dl}{t^{0}_{1}} \ar[swap]{dr}{t^{0}_{2}} &\\
+    L_{1} \ar[bend left]{ur}{t^{1}_{0}} \ar{rr}{t^{1}_{2}} &&L_{2} \ar[bend right, swap]{ul}{t^{2}_{0}} \ar[bend left]{ll}{t^{2}_{1}}\\
+\end{tikzcd}\]
+- \(i,j,k \in \mathbb{N}\)
+- an object \(L_{i} \in L\) is a language
+- an arrow \(t^{i}_{j}\) translates \(L_{i} \to L_{j}\), preserving discourse
+- the composition \(t^{j}_{k} t^{i}_{j} = t^{i}_{k}\) is an indirect translation
+** concept art: the category of a language \(L_{i}\)                :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[row sep=large]
+    S_{0} \ar[loop left]{}{e_{0}} \ar{r}{e_{1}} \ar{dr}{e_{2}} &S_{1} \ar[loop right]{}{e_{0}} \ar[loop above]{}{e_{1}} \ar{d}{e_{2}}\\
+    &S_{2} \ar[loop right]{}{e_{0}} \ar[loop below]{}{e_{1}} \ar[loop left]{}{e_{2}}\\
+\end{tikzcd}\]
+- \(j,k,m,n \in \mathbb{N}\)
+- \(S_{0}\) is the set of all possible worlds
+- an object \(S_{j} \in S = \mathbb{P}{S_{0}}\) is an information state
+- an arrow \(e_{m} : S_{j} \to S_{k}\) is an expression (proposition or utterance) which alters the information state
+- the composition \(e_{n} e_{m} = e_{mn}\), a concatenation of expressions, conducts discourse
+** concept art: the category of a language \(L_{i}\)                :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[row sep=large]
+    S_{0} \ar[loop left]{}{e_{0}} \ar{r}{e_{1}} \ar{dr}{e_{2}} &S_{1} \ar[loop right]{}{e_{0}} \ar[loop above]{}{e_{1}} \ar{d}{e_{2}}\\
+    &S_{2} \ar[loop right]{}{e_{0}} \ar[loop below]{}{e_{1}} \ar[loop left]{}{e_{2}}\\
+\end{tikzcd}\]
+- the empty expression \(e_{0}\) adds no information to the discourse
+- the intensional interpretation of \(e_{1}\) is \(S_{1}\), and \(e_{2}\) \(S_{2}\)
+- logically, \(e_{2}\) implies \(e_{1}\)
+- a gibberish leads any information state to the empty state, in which case the discourse must backtrack in order to proceed
+- every state has one outgoing arrow corresponding to each expression (totality)
+** concept art: the monoid of a language \(E_{i}\)                  :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\begin{minipage}{.6\linewidth}
+  \[\begin{tikzcd}[row sep=large]
+      S_{0} \ar[loop left]{}{e_{0}} \ar{r}{e_{1}} \ar{dr}{e_{2}} &S_{1} \ar[loop right]{}{e_{0}} \ar[loop above]{}{e_{1}} \ar{d}{e_{2}}\\
+      &S_{2} \ar[loop right]{}{e_{0}} \ar[loop below]{}{e_{1}} \ar[loop left]{}{e_{2}}\\
+    \end{tikzcd}\]
+\end{minipage}
+\begin{minipage}{.3\linewidth}
+  \[\begin{tikzcd}
+      S \ar[loop above]{}{e_{0}} \ar[loop left]{}{e_{1}} \ar[loop right]{}{e_{2}}\\
+    \end{tikzcd}\]
+\end{minipage}
+- \(L_{i}\) is a category with totality (left), which is a monoid (right)
+- its composition is the concatenation of expressions
+- its identity is the empty expression
+- it is the free monoid generated by the alphabet \(A_{i}\) of \(L_{i}\)
+- namely the free monoid \(E_{i} = A_{i}^{*}\)
+** concept art: the free functor \(A \to E\)                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[column sep=small]
+    &A \ar{rrr}{\free} &&&E&\\
+    &A_{i} \ar[swap]{dl}{f} \ar[near start]{ddr}{gf} \ar{rrr} &&&E_{i} \ar[swap]{dl}{\free f} \ar[ddr, "\free (gf)" near start, "=", "(\free g) (\free f)" near end]&\\
+    A_{j} \ar[swap]{drr}{g} \ar{rrr} &&&E_{j} \ar[swap]{drr}{\free g} &&\\
+    &&A_{k} \ar{rrr} &&&E_{k}\\
+\end{tikzcd}\]
+| category | \(A\)     | \(E = \free A\)      |
+| objects  | charsets  | monoids              |
+| arrows   | functions | monoid homomorphisms |
+** concept art: \(\eti\)                                            :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[column sep=huge]
+    E \ar[bend left]{r}{\interpret} &L \ar[bend left]{l}{\express}\\
+    E_{j} \ar[swap]{d}{\eti^{j}_{k}} \ar[swap]{r}{\interpret} &L_{j} \ar{d}{t^{j}_{k}}\\
+    E_{k} &L_{k} \ar[swap]{l}{\express}\\
+\end{tikzcd}\]
+- the encoder functor \(\interpret\) empirically identifies expressions in \(E_{i}\) as paths in \(L_{i}\)
+- the decoder functor \(\express\) reconstructs expressions from paths of discourse in \(L_{i}\)
+- our model, the monoid homomorphism \(\eti^{j}_{k} : E_{j} \to E_{k}\) is given by the composition \(\express t^{i}_{j} \interpret\)
+* tasks
+** preparation                                                      :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- unnormalized =-LRB-= =-RRB-= =-RCB-= =-LCB-=
+- investigate and fix encoding error =\x92=
+- train, tune, test splits
+** baselines                                                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- run byte-net and transformer-net
+- evaluate BLEU scores
+  + bad measure but commonly used
+  + consider ideas from other teams
+** modelling                                                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[\begin{tikzcd}[column sep=huge]
+    A \ar{r}{\free} &E \ar[swap, Rightarrow]{d}{\eti} \ar{r}{\interpret} &L \ar[Rightarrow]{d}{t}\\
+    A \ar[swap]{r}{\free} &E &L \ar{l}{\express}\\
+\end{tikzcd}\]
+** exploration: CRF decoding                                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- instead of beam search
+- use CRF log likelihood as loss
+- how to fix sequence lengths?
+  + consider the approach in conv-seq2seq[fn:4]
+** exploration: generative pretraining                              :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- pretrain the encoder on the normal data, or
+- pretrain the decoder on the simple data
+* Footnotes
+[fn:1] http://www.cs.pomona.edu/~dkauchak/simplification/
+[fn:2] https://arxiv.org/abs/1610.10099
+[fn:3] https://arxiv.org/abs/1706.03762
+[fn:4] https://arxiv.org/abs/1705.03122
+# local variables:
+# org-beamer-outline-frame-title: "outline"
+# end:
