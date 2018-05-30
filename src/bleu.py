@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 
 
-def load(filename, tokenize= str.split):
-    with open(filename) as file:
-        return list(map(tokenize, file))
-
-
 def bleu(gold, pred):
     from nltk.translate.bleu_score import corpus_bleu
     return corpus_bleu([[g] for g in gold], pred)
@@ -21,4 +16,5 @@ def parse_args():
 
 if '__main__' == __name__:
     args = parse_args()
+    from utils import load
     print(bleu(load(args.gold), load(args.pred)))

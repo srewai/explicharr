@@ -2,13 +2,6 @@ from collections import Counter
 import numpy as np
 
 
-def load(filename):
-    with open(filename) as file:
-        for line in file:
-            _, _, sent = line.split("\t")
-            yield sent.split()
-
-
 stat = lambda x: dict(min= x.min(), max= x.max(), mean= x.mean())
 amap = lambda f, a: np.fromiter(map(f, a), dtype= np.float)
 
@@ -29,10 +22,11 @@ def alphabet(vocab):
 
 
 if '__main__' == __name__:
+    from utils import load
 
-    path = "../data/sentence-aligned.v2/"
-    normal = list(load(path + "normal.aligned"))
-    simple = list(load(path + "simple.aligned"))
+    path = "../data/"
+    normal = load(path + "train.nen")
+    simple = load(path + "train.sen")
 
     print("normal word", stat(amap(word_count, normal)))
     print("normal char", stat(amap(char_count, normal)))
