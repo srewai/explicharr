@@ -1,0 +1,5 @@
+* special characters
+
+- "\xa0" non-breaking space, for unknown char
+- "\x0a" newline, for end of sequence
+- "\x20" space, for token boundry

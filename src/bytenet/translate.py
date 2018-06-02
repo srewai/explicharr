@@ -26,6 +26,9 @@ def main():
                        help='Batch Size')
     parser.add_argument('--bucket_size', type=int, default=None,
                        help='Bucket Size')
+    # args = parser.parse_args("--model_path Data/Models/translation_model/model_epoch_1_213.ckpt \
+    # --source_file ../../mock/train.nen \
+    # --target_file ../../mock/train.sen".split())
     args = parser.parse_args()
 
     data_loader_options = {
@@ -36,6 +39,7 @@ def main():
     }
 
     dl = data_loader.Data_Loader(data_loader_options)
+    # TODO fix vocab
     buckets, source_vocab, target_vocab = dl.load_translation_data()
     print("Number Of Buckets", len(buckets))
 
@@ -54,7 +58,8 @@ def main():
     translator_model.build_translator()
 
     sess = tf.InteractiveSession()
-    tf.initialize_all_variables().run()
+    tf.global_variables_initializer().run()
+    # tf.initialize_all_variables().run()
     saver = tf.train.Saver()
 
     if args.model_path:
@@ -77,7 +82,7 @@ def main():
     log_file = open('Data/translator_sample.txt', 'wb')
     generated_target = target[:,0:1]
     for col in range(bucket_size):
-        [probs] = sess.run([translator_model.t_probs],
+        probs = sess.run(translator_model.t_probs,
             feed_dict = {
                 translator_model.t_source_sentence : source,
                 translator_model.t_target_sentence : generated_target,
@@ -91,19 +96,19 @@ def main():
         generated_target = np.insert(generated_target, generated_target.shape[1], curr_preds, axis = 1)
 
 
-        for bi in range(probs.shape[0]):
+        # for bi in range(probs.shape[0]):
+        #     print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
+        #     print(col, dl.inidices_to_string(target[bi], target_vocab))
+        #     print("***************")
+        #     if col == bucket_size - 1:
+        #         try:
+        #             log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
+        #             log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
+        #             log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
+        #         except:
+        #             pass
 
-            print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
-            print(col, dl.inidices_to_string(target[bi], target_vocab))
-            print("***************")
-
-            if col == bucket_size - 1:
-                try:
-                    log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
-                    log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
-                    log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
-                except:
-                    pass
+    print(dl.inidices_to_string(generated_target[0, 1:], target_vocab), file= log_file)
 
     log_file.close()
 

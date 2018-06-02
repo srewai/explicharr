@@ -14,9 +14,9 @@ class Data_Loader:
                 self.max_sentences = options['max_sentences']
 
             with open(source_file) as f:
-                self.source_lines = f.read().decode("utf-8").split('\n')
+                self.source_lines = [line.strip() for line in f.readlines()]
             with open(target_file) as f:
-                self.target_lines = f.read().decode("utf-8").split('\n')
+                self.target_lines = [line.strip() for line in f.readlines()]
 
             if self.max_sentences:
                 self.source_lines = self.source_lines[0:self.max_sentences]
@@ -84,7 +84,7 @@ class Data_Loader:
         target_vocab = self.target_vocab
 
         buckets = {}
-        for i in xrange(len(source_lines)):
+        for i in range(len(source_lines)):
 
             source_lines[i] = np.concatenate( (source_lines[i], [source_vocab['eol']]) )
             target_lines[i] = np.concatenate( ([target_vocab['init']], target_lines[i], [target_vocab['eol']]) )
@@ -95,12 +95,12 @@ class Data_Loader:
 
             new_length = max(sl, tl)
             if new_length % bucket_quant > 0:
-                new_length = ((new_length/bucket_quant) + 1 ) * bucket_quant
+                new_length = int(((new_length/bucket_quant) + 1 ) * bucket_quant)
 
-            s_padding = np.array( [source_vocab['padding'] for ctr in xrange(sl, new_length) ] )
+            s_padding = np.array( [source_vocab['padding'] for ctr in range(sl, new_length) ] )
 
             # NEED EXTRA PADDING FOR TRAINING..
-            t_padding = np.array( [target_vocab['padding'] for ctr in xrange(tl, new_length + 1) ] )
+            t_padding = np.array( [target_vocab['padding'] for ctr in range(tl, new_length + 1) ] )
 
             source_lines[i] = np.concatenate( [ source_lines[i], s_padding ] )
             target_lines[i] = np.concatenate( [ target_lines[i], t_padding ] )

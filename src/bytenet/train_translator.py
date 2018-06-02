@@ -69,7 +69,8 @@ def main():
     merged_summary = tf.summary.merge_all()
 
     sess = tf.InteractiveSession()
-    tf.initialize_all_variables().run()
+    tf.global_variables_initializer().run()
+    # tf.initialize_all_variables().run()
     saver = tf.train.Saver()
 
     if args.resume_model:
