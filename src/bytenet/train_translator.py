@@ -6,7 +6,7 @@ import data_loader
 from ByteNet import translator
 import utils
 import shutil
-import time
+# import time
 
 def main():
     parser = argparse.ArgumentParser()
@@ -71,7 +71,7 @@ def main():
         beta1 = args.beta1).minimize(translator_model.loss)
 
     translator_model.build_translator(reuse = True)
-    merged_summary = tf.summary.merge_all()
+    # merged_summary = tf.summary.merge_all()
 
     sess = tf.InteractiveSession()
     tf.global_variables_initializer().run()
@@ -82,10 +82,9 @@ def main():
         saver.restore(sess, args.resume_model)
 
     shutil.rmtree('Data/tb_summaries/translator_model')
-    train_writer = tf.summary.FileWriter('Data/tb_summaries/translator_model', sess.graph)
+    # train_writer = tf.summary.FileWriter('Data/tb_summaries/translator_model', sess.graph)
 
-    bucket_sizes = [bucket_size for bucket_size in buckets]
-    bucket_sizes.sort()
+    bucket_sizes = sorted(buckets.keys())
 
     step = 0
     batch_size = args.batch_size
@@ -96,7 +95,7 @@ def main():
 
             batch_no = 0
             while (batch_no + 1) * batch_size < len(buckets[bucket_size]):
-                start = time.clock()
+                # start = time.clock()
                 source, target = dl.get_batch_from_pairs(
                     buckets[bucket_size][batch_no * batch_size : (batch_no+1) * batch_size]
                 )
@@ -108,63 +107,56 @@ def main():
                         translator_model.source_sentence : source,
                         translator_model.target_sentence : target,
                     })
-                end = time.clock()
+                # end = time.clock()
 
-                print("LOSS: {}\tEPOCH: {}\tBATCH_NO: {}\t STEP:{}\t total_batches:{}\t bucket_size:{}".format(loss, epoch, batch_no, step, len(buckets[bucket_size])/args.batch_size, bucket_size))
-                print("TIME FOR BATCH", end - start)
-                print("TIME FOR BUCKET (mins)", (end - start) * (len(buckets[bucket_size])/args.batch_size)/60.0)
+                print("LOSS: {}\tEPOCH: {}\tBATCH_NO: {}\t STEP:{}\t total_batches:{}\t bucket_size:{}".format(loss, epoch, batch_no, step, len(buckets[bucket_size])//args.batch_size, bucket_size))
+                # print("TIME FOR BATCH", end - start)
+                # print("TIME FOR BUCKET (mins)", (end - start) * (len(buckets[bucket_size])/args.batch_size)/60.0)
 
                 batch_no += 1
                 step += 1
 
-                if step % args.summary_every == 0:
-                    [summary] = sess.run([merged_summary], feed_dict = {
-                        translator_model.source_sentence : source,
-                        translator_model.target_sentence : target,
-                    })
-                    train_writer.add_summary(summary, step)
+                # if step % args.summary_every == 0:
+                #     [summary] = sess.run([merged_summary], feed_dict = {
+                #         translator_model.source_sentence : source,
+                #         translator_model.target_sentence : target,
+                #     })
+                #     train_writer.add_summary(summary, step)
+                #     print("******")
+                #     print("Source ", dl.inidices_to_string(source[0], source_vocab))
+                #     print("---------")
+                #     print("Target ", dl.inidices_to_string(target[0], target_vocab))
+                #     print("----------")
+                #     print("Prediction ",dl.inidices_to_string(prediction[0:bucket_size], target_vocab))
+                #     print("******")
 
-                    print("******")
-                    print("Source ", dl.inidices_to_string(source[0], source_vocab))
-                    print("---------")
-                    print("Target ", dl.inidices_to_string(target[0], target_vocab))
-                    print("----------")
-                    print("Prediction ",dl.inidices_to_string(prediction[0:bucket_size], target_vocab))
-                    print("******")
-
-                if step % args.sample_every == 0:
-                    log_file = open('Data/translator_sample.txt', 'wb')
-                    generated_target = target[:,0:1]
-                    for col in range(bucket_size):
-                        [probs] = sess.run([translator_model.t_probs],
-                            feed_dict = {
-                                translator_model.t_source_sentence : source,
-                                translator_model.t_target_sentence : generated_target,
-                            })
-
-                        curr_preds = []
-                        for bi in range(probs.shape[0]):
-                            pred_word = utils.sample_top(probs[bi][-1], top_k = args.top_k )
-                            curr_preds.append(pred_word)
-
-                        generated_target = np.insert(generated_target, generated_target.shape[1], curr_preds, axis = 1)
-
-
-                        for bi in range(probs.shape[0]):
-
-                            print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
-                            print(col, dl.inidices_to_string(target[bi], target_vocab))
-                            print("***************")
-
-                            if col == bucket_size - 1:
-                                try:
-                                    log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
-                                    log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
-                                    log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
-                                except:
-                                    pass
-                                print("***************")
-                    log_file.close()
+                # if step % args.sample_every == 0:
+                #     log_file = open('Data/translator_sample.txt', 'wb')
+                #     generated_target = target[:,0:1]
+                #     for col in range(bucket_size):
+                #         [probs] = sess.run([translator_model.t_probs],
+                #             feed_dict = {
+                #                 translator_model.t_source_sentence : source,
+                #                 translator_model.t_target_sentence : generated_target,
+                #             })
+                #         curr_preds = []
+                #         for bi in range(probs.shape[0]):
+                #             pred_word = utils.sample_top(probs[bi][-1], top_k = args.top_k )
+                #             curr_preds.append(pred_word)
+                #         generated_target = np.insert(generated_target, generated_target.shape[1], curr_preds, axis = 1)
+                #         for bi in range(probs.shape[0]):
+                #             print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
+                #             print(col, dl.inidices_to_string(target[bi], target_vocab))
+                #             print("***************")
+                #             if col == bucket_size - 1:
+                #                 try:
+                #                     log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
+                #                     log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
+                #                     log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
+                #                 except:
+                #                     pass
+                #                 print("***************")
+                #     log_file.close()
 
             save_path = saver.save(sess, "Data/Models/translation_model/model_epoch_{}_{}.ckpt".format(epoch, bucket_size))
 

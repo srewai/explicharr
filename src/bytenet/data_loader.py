@@ -94,12 +94,12 @@ class Data_Loader:
 
             new_length = max(sl, tl)
             if new_length % bucket_quant:
-                new_length = int((new_length // bucket_quant + 1 ) * bucket_quant)
+                new_length += bucket_quant - (new_length % bucket_quant)
 
             s_padding = np.full(new_length - sl, source_vocab['padding'])
 
             # NEED EXTRA PADDING FOR TRAINING..
-            t_padding = np.full(new_length - sl + 1, target_vocab['padding'])
+            t_padding = np.full(new_length - tl + 1, target_vocab['padding'])
 
             source_lines[i] = np.concatenate( ( source_lines[i], s_padding ) )
             target_lines[i] = np.concatenate( ( target_lines[i], t_padding ) )
@@ -109,8 +109,7 @@ class Data_Loader:
             else:
                 buckets[new_length] = [(source_lines[i], target_lines[i])]
 
-            if i%1000 == 0:
-                print("Loading", i)
+            # if i%1000 == 0: print("Loading", i)
 
         return buckets
 
@@ -146,13 +145,8 @@ class Data_Loader:
         return "".join(sent)
 
     def get_batch_from_pairs(self, pair_list):
-        source_sentences = []
-        target_sentences = []
-        for s, t in pair_list:
-            source_sentences.append(s)
-            target_sentences.append(t)
-
-        return np.array(source_sentences, dtype = 'int32'), np.array(target_sentences, dtype = 'int32')
+        source_sentences, target_sentences = zip(*pair_list)
+        return np.array(source_sentences, dtype= np.int32), np.array(target_sentences, dtype= np.int32)
 
 
 def main():

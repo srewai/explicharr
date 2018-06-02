@@ -80,7 +80,6 @@ def main():
         random.sample(buckets[bucket_size], args.batch_size)
     )
 
-    # log_file = open('Data/translator_sample.txt', 'wb')
     generated_target = target[:,0:1]
     for col in range(bucket_size):
         probs = sess.run(translator_model.t_probs,
@@ -96,7 +95,7 @@ def main():
 
         generated_target = np.insert(generated_target, generated_target.shape[1], curr_preds, axis = 1)
 
-
+    # log_file = open('Data/translator_sample.txt', 'wb')
     #     for bi in range(probs.shape[0]):
     #         print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
     #         print(col, dl.inidices_to_string(target[bi], target_vocab))
