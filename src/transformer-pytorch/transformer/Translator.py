@@ -88,7 +88,7 @@ class Translator(object):
             # size: (batch * beam) x seq
             dec_partial_seq = dec_partial_seq.view(-1, len_dec_seq)
             # wrap into a Variable
-            dec_partial_seq = Variable(dec_partial_seq, volatile=True)
+            dec_partial_seq = Variable(dec_partial_seq)
 
             # -- Preparing decoded pos seq -- #
             # size: 1 x seq
@@ -96,7 +96,7 @@ class Translator(object):
             # size: (batch * beam) x seq
             dec_partial_pos = dec_partial_pos.repeat(n_remaining_sents * beam_size, 1)
             # wrap into a Variable
-            dec_partial_pos = Variable(dec_partial_pos.type(torch.LongTensor), volatile=True)
+            dec_partial_pos = Variable(dec_partial_pos.type(torch.LongTensor))
 
             if self.opt.cuda:
                 dec_partial_seq = dec_partial_seq.cuda()
@@ -146,7 +146,7 @@ class Translator(object):
                 active_seq_data = original_seq_data.index_select(0, active_inst_idxs)
                 active_seq_data = active_seq_data.view(*new_size)
 
-                return Variable(active_seq_data, volatile=True)
+                return Variable(active_seq_data)
 
             def update_active_enc_info(enc_info_var, active_inst_idxs):
                 ''' Remove the encoder outputs of finished instances in one batch. '''
@@ -161,7 +161,7 @@ class Translator(object):
                 active_enc_info_data = original_enc_info_data.index_select(0, active_inst_idxs)
                 active_enc_info_data = active_enc_info_data.view(*new_size)
 
-                return Variable(active_enc_info_data, volatile=True)
+                return Variable(active_enc_info_data)
 
             src_seq = update_active_seq(src_seq, active_inst_idxs)
             enc_output = update_active_enc_info(enc_output, active_inst_idxs)
@@ -175,9 +175,10 @@ class Translator(object):
 
         for beam_idx in range(batch_size):
             scores, tail_idxs = beams[beam_idx].sort_scores()
-            all_scores += [scores[:n_best]]
+            scores = scores[:n_best].cpu().numpy()
+            all_scores.append(scores)
 
-            hyps = [beams[beam_idx].get_hypothesis(i) for i in tail_idxs[:n_best]]
-            all_hyp += [hyps]
+            hyps = [list(map(int, beams[beam_idx].get_hypothesis(i))) for i in tail_idxs[:n_best]]
+            all_hyp.append(hyps)
 
         return all_hyp, all_scores

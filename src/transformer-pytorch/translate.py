@@ -30,6 +30,10 @@ def main():
                         decoded sentences""")
     parser.add_argument('-no_cuda', action='store_true')
 
+    # opt = parser.parse_args("-batch_size 6 \
+    # -model baseline/model.chkpt \
+    # -vocab baseline/data.pt \
+    # -src ../../mock/test.nen".split())
     opt = parser.parse_args()
     opt.cuda = not opt.no_cuda
 
@@ -50,16 +54,16 @@ def main():
         shuffle=False,
         batch_size=opt.batch_size)
 
-    translator = Translator(opt)
+    with torch.no_grad(): translator = Translator(opt)
     translator.model.eval()
 
     with open(opt.output, 'w') as f:
         for batch in tqdm(test_data, mininterval=2, desc='  - (Test)', leave=False):
-            all_hyp, all_scores = translator.translate_batch(batch)
+            all_hyp, _ = translator.translate_batch(batch)
             for idx_seqs in all_hyp:
                 for idx_seq in idx_seqs:
-                    pred_line = ' '.join([test_data.tgt_idx2word[idx] for idx in idx_seq])
-                    f.write(pred_line + '\n')
+                    pred_line = ' '.join([test_data.tgt_idx2word[int(idx)] for idx in idx_seq])
+                    print(pred_line, file= f)
     print('[Info] Finished.')
 
 if __name__ == "__main__":
