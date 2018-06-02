@@ -26,6 +26,7 @@ def main():
                        help='Batch Size')
     parser.add_argument('--bucket_size', type=int, default=None,
                        help='Bucket Size')
+
     # args = parser.parse_args("--model_path Data/Models/translation_model/model_epoch_1_213.ckpt \
     # --source_file ../../mock/train.nen \
     # --target_file ../../mock/train.sen".split())
@@ -79,7 +80,7 @@ def main():
         random.sample(buckets[bucket_size], args.batch_size)
     )
 
-    log_file = open('Data/translator_sample.txt', 'wb')
+    # log_file = open('Data/translator_sample.txt', 'wb')
     generated_target = target[:,0:1]
     for col in range(bucket_size):
         probs = sess.run(translator_model.t_probs,
@@ -96,22 +97,20 @@ def main():
         generated_target = np.insert(generated_target, generated_target.shape[1], curr_preds, axis = 1)
 
 
-        # for bi in range(probs.shape[0]):
-        #     print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
-        #     print(col, dl.inidices_to_string(target[bi], target_vocab))
-        #     print("***************")
-        #     if col == bucket_size - 1:
-        #         try:
-        #             log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
-        #             log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
-        #             log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
-        #         except:
-        #             pass
+    #     for bi in range(probs.shape[0]):
+    #         print(col, dl.inidices_to_string(generated_target[bi], target_vocab))
+    #         print(col, dl.inidices_to_string(target[bi], target_vocab))
+    #         print("***************")
+    #         if col == bucket_size - 1:
+    #             try:
+    #                 log_file.write("Predicted: " + dl.inidices_to_string(generated_target[bi], target_vocab) + '\n')
+    #                 log_file.write("Actual Target: " + dl.inidices_to_string(target[bi], target_vocab) + '\n')
+    #                 log_file.write("Actual Source: " + dl.inidices_to_string(source[bi], source_vocab) + '\n *******')
+    #             except:
+    #                 pass
+    # log_file.close()
 
-    print(dl.inidices_to_string(generated_target[0, 1:], target_vocab), file= log_file)
-
-    log_file.close()
-
+    print(dl.inidices_to_string(generated_target[0, 1:], target_vocab))
 
 
 if __name__ == '__main__':

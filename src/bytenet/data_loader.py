@@ -92,18 +92,17 @@ class Data_Loader:
             sl = len(source_lines[i])
             tl = len(target_lines[i])
 
-
             new_length = max(sl, tl)
-            if new_length % bucket_quant > 0:
-                new_length = int(((new_length/bucket_quant) + 1 ) * bucket_quant)
+            if new_length % bucket_quant:
+                new_length = int((new_length // bucket_quant + 1 ) * bucket_quant)
 
-            s_padding = np.array( [source_vocab['padding'] for ctr in range(sl, new_length) ] )
+            s_padding = np.full(new_length - sl, source_vocab['padding'])
 
             # NEED EXTRA PADDING FOR TRAINING..
-            t_padding = np.array( [target_vocab['padding'] for ctr in range(tl, new_length + 1) ] )
+            t_padding = np.full(new_length - sl + 1, target_vocab['padding'])
 
-            source_lines[i] = np.concatenate( [ source_lines[i], s_padding ] )
-            target_lines[i] = np.concatenate( [ target_lines[i], t_padding ] )
+            source_lines[i] = np.concatenate( ( source_lines[i], s_padding ) )
+            target_lines[i] = np.concatenate( ( target_lines[i], t_padding ) )
 
             if new_length in buckets:
                 buckets[new_length].append( (source_lines[i], target_lines[i]) )
@@ -132,7 +131,8 @@ class Data_Loader:
         return vocab
 
     def string_to_indices(self, sentence, vocab):
-        indices = [ vocab[s] for s in sentence ]
+        unknown = vocab[' ']
+        indices = [ vocab.get(s, unknown) for s in sentence ]
         return indices
 
     def inidices_to_string(self, sentence, vocab):
@@ -141,7 +141,7 @@ class Data_Loader:
         for c in sentence:
             if id_ch[c] == 'eol':
                 break
-            sent += id_ch[c]
+            sent.append(id_ch[c])
 
         return "".join(sent)
 

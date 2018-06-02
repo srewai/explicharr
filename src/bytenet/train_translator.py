@@ -47,6 +47,11 @@ def main():
     buckets, source_vocab, target_vocab = dl.load_translation_data()
     print("Number Of Buckets", len(buckets))
 
+    import pickle
+    with open("Data/Models/translation_model/vocab.p", "wb") as f:
+        pickle.dump(dict(source_vocab= dl.source_vocab, target_vocab= dl.target_vocab), f)
+    print("vocab saved")
+
     config = model_config.translator_config
     model_options = {
         'source_vocab_size' : len(source_vocab),
