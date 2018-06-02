@@ -36,18 +36,18 @@ def main():
                        help='Data Directory')
     parser.add_argument('--seed', type=str, default='All',
                        help='Seed for text generation')
-    
+
 
 
     args = parser.parse_args()
-    
+
     # model_config = json.loads( open('model_config.json').read() )
     config = model_config.predictor_config
 
     dl = data_loader.Data_Loader({'model_type' : 'generator', 'dir_name' : args.text_dir})
     text_samples, vocab = dl.load_generator_data(config['sample_size'])
-    print text_samples.shape
-    
+    print(text_samples.shape)
+
     model_options = {
         'vocab_size' : len(vocab),
         'residual_channels' : config['residual_channels'],
@@ -57,9 +57,9 @@ def main():
 
     generator_model = generator.ByteNet_Generator( model_options )
     generator_model.build_model()
-    
+
     optim = tf.train.AdamOptimizer(
-        args.learning_rate, 
+        args.learning_rate,
         beta1 = args.beta1).minimize(generator_model.loss)
 
     generator_model.build_generator(reuse = True)
@@ -68,10 +68,10 @@ def main():
     sess = tf.InteractiveSession()
     tf.initialize_all_variables().run()
     saver = tf.train.Saver()
-    
+
     if args.resume_model:
         saver.restore(sess, args.resume_model)
-    
+
     shutil.rmtree('Data/tb_summaries/generator_model')
     train_writer = tf.summary.FileWriter('Data/tb_summaries/generator_model', sess.graph)
 
@@ -84,38 +84,37 @@ def main():
             start = time.clock()
 
             text_batch = text_samples[batch_no*batch_size : (batch_no + 1)*batch_size, :]
-            _, loss, prediction = sess.run( 
-                [optim, generator_model.loss, 
-                generator_model.arg_max_prediction], 
+            _, loss, prediction = sess.run(
+                [optim, generator_model.loss,
+                generator_model.arg_max_prediction],
                 feed_dict = {
                     generator_model.t_sentence : text_batch
                 })
             end = time.clock()
-            print "-------------------------------------------------------"
-            print "LOSS: {}\tEPOCH: {}\tBATCH_NO: {}\t STEP:{}\t total_batches:{}".format(
-                loss, epoch, batch_no, step, text_samples.shape[0]/args.batch_size)
-            print "TIME FOR BATCH", end - start
-            print "TIME FOR EPOCH (mins)", (end - start) * (text_samples.shape[0]/args.batch_size)/60.0
-            
+            print("-------------------------------------------------------")
+            print("LOSS: {}\tEPOCH: {}\tBATCH_NO: {}\t STEP:{}\t total_batches:{}".format(loss, epoch, batch_no, step, text_samples.shape[0]/args.batch_size))
+            print("TIME FOR BATCH", end - start)
+            print("TIME FOR EPOCH (mins)", (end - start) * (text_samples.shape[0]/args.batch_size)/60.0)
+
             batch_no += 1
             step += 1
-            
+
             if step % args.summary_every == 0:
                 [summary] = sess.run([merged_summary], feed_dict = {
                     generator_model.t_sentence : text_batch
                 })
                 train_writer.add_summary(summary, step)
-                print dl.inidices_to_string(prediction, vocab)
-            
-            print "********************************************************"
-                
+                print(dl.inidices_to_string(prediction, vocab))
+
+            print("********************************************************")
+
             if step % args.sample_every == 0:
                 seed_sentence = np.array([dl.string_to_indices(args.seed, vocab)], dtype = 'int32' )
 
                 for col in range(args.sample_size):
-                    [probs] = sess.run([generator_model.g_probs], 
+                    [probs] = sess.run([generator_model.g_probs],
                         feed_dict = {
-                            generator_model.seed_sentence :seed_sentence 
+                            generator_model.seed_sentence :seed_sentence
                         })
 
                     curr_preds = []
@@ -124,7 +123,7 @@ def main():
                         curr_preds.append(pred_word)
 
                     seed_sentence = np.insert(seed_sentence, seed_sentence.shape[1], curr_preds, axis = 1)
-                    print col, dl.inidices_to_string(seed_sentence[0], vocab)
+                    print(col, dl.inidices_to_string(seed_sentence[0], vocab))
 
                 f = open('Data/generator_sample.txt', 'wb')
                 f.write(dl.inidices_to_string(seed_sentence[0], vocab))

@@ -5,17 +5,17 @@ def fully_connected(input_, output_nodes, name, stddev=0.02):
     with tf.variable_scope(name):
         input_shape = input_.get_shape()
         input_nodes = input_shape[-1]
-        w = tf.get_variable('w', [input_nodes, output_nodes], 
+        w = tf.get_variable('w', [input_nodes, output_nodes],
             initializer=tf.truncated_normal_initializer(stddev=0.02))
-        biases = tf.get_variable('b', [output_nodes], 
+        biases = tf.get_variable('b', [output_nodes],
             initializer=tf.constant_initializer(0.0))
         res = tf.matmul(input_, w) + biases
         return res
 
 
 # 1d CONVOLUTION WITH DILATION
-def conv1d(input_, output_channels, 
-    dilation = 1, filter_width = 1, causal = False, 
+def conv1d(input_, output_channels,
+    dilation = 1, filter_width = 1, causal = False,
     name = "dilated_conv"):
     with tf.variable_scope(name):
         w = tf.get_variable('w', [1, filter_width, input_.get_shape()[-1], output_channels ],
@@ -37,18 +37,18 @@ def conv1d(input_, output_channels,
 def layer_normalization(x, name, epsilon=1e-8, trainable = True):
     with tf.variable_scope(name):
         shape = x.get_shape()
-        beta = tf.get_variable('beta', [ int(shape[-1])], 
+        beta = tf.get_variable('beta', [ int(shape[-1])],
             initializer=tf.constant_initializer(0), trainable=trainable)
-        gamma = tf.get_variable('gamma', [ int(shape[-1])], 
+        gamma = tf.get_variable('gamma', [ int(shape[-1])],
             initializer=tf.constant_initializer(1), trainable=trainable)
-        
+
         mean, variance = tf.nn.moments(x, axes=[len(shape) - 1], keep_dims=True)
-        
+
         x = (x - mean) /  tf.sqrt(variance + epsilon)
 
         return gamma * x + beta
 
-def byetenet_residual_block(input_, dilation, layer_no, 
+def byetenet_residual_block(input_, dilation, layer_no,
     residual_channels, filter_width,
     causal = True, train = True):
         block_type = "decoder" if causal else "encoder"
@@ -59,13 +59,13 @@ def byetenet_residual_block(input_, dilation, layer_no,
             conv1 = conv1d(relu1, residual_channels, name = "conv1d_1")
             conv1 = layer_normalization(conv1, name="ln2", trainable = train)
             relu2 = tf.nn.relu(conv1)
-            
-            dilated_conv = conv1d(relu2, residual_channels, 
+
+            dilated_conv = conv1d(relu2, residual_channels,
                 dilation, filter_width,
                 causal = causal,
                 name = "dilated_conv"
                 )
-            print dilated_conv
+            print(dilated_conv)
             dilated_conv = layer_normalization(dilated_conv, name="ln3", trainable = train)
             relu3 = tf.nn.relu(dilated_conv)
             conv2 = conv1d(relu3, 2 * residual_channels, name = 'conv1d_2')

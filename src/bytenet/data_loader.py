@@ -22,29 +22,29 @@ class Data_Loader:
                 self.source_lines = self.source_lines[0:self.max_sentences]
                 self.target_lines = self.target_lines[0:self.max_sentences]
 
-            print "Source Sentences", len(self.source_lines)
-            print "Target Sentences", len(self.target_lines)
+            print("Source Sentences", len(self.source_lines))
+            print("Target Sentences", len(self.target_lines))
 
             self.bucket_quant = options['bucket_quant']
             self.source_vocab = self.build_vocab(self.source_lines)
             self.target_vocab = self.build_vocab(self.target_lines)
 
-            print "SOURCE VOCAB SIZE", len(self.source_vocab)
-            print "TARGET VOCAB SIZE", len(self.target_vocab)
-        
+            print("SOURCE VOCAB SIZE", len(self.source_vocab))
+            print("TARGET VOCAB SIZE", len(self.target_vocab))
+
         elif options['model_type'] == 'generator':
             dir_name = options['dir_name']
             files = [ join(dir_name, f) for f in listdir(dir_name) if ( isfile(join(dir_name, f)) and ('.txt' in f) ) ]
             text = []
             for f in files:
                 text += list(open(f).read())
-            
+
             vocab = {ch : True for ch in text}
-            print "Bool vocab", len(vocab)
+            print("Bool vocab", len(vocab))
             self.vocab_list = [ch for ch in vocab]
-            print "vocab list", len(self.vocab_list)
+            print("vocab list", len(self.vocab_list))
             self.vocab_indexed = {ch : i for i, ch in enumerate(self.vocab_list)}
-            print "vocab_indexed", len(self.vocab_indexed)
+            print("vocab_indexed", len(self.vocab_indexed))
 
             for index, item in enumerate(text):
                 text[index] = self.vocab_indexed[item]
@@ -70,36 +70,36 @@ class Data_Loader:
         # frequent_keys = [ (-len(buckets[key]), key) for key in buckets ]
         # frequent_keys.sort()
 
-        # print "Source", self.inidices_to_string( buckets[ frequent_keys[3][1] ][5][0], self.source_vocab)
-        # print "Target", self.inidices_to_string( buckets[ frequent_keys[3][1] ][5][1], self.target_vocab)
-        
+        # print("Source", self.inidices_to_string( buckets[ frequent_keys[3][1] ][5][0], self.source_vocab))
+        # print("Target", self.inidices_to_string( buckets[ frequent_keys[3][1] ][5][1], self.target_vocab))
+
         return buckets, self.source_vocab, self.target_vocab
 
 
 
     def create_buckets(self, source_lines, target_lines):
-        
+
         bucket_quant = self.bucket_quant
         source_vocab = self.source_vocab
         target_vocab = self.target_vocab
 
         buckets = {}
         for i in xrange(len(source_lines)):
-            
+
             source_lines[i] = np.concatenate( (source_lines[i], [source_vocab['eol']]) )
             target_lines[i] = np.concatenate( ([target_vocab['init']], target_lines[i], [target_vocab['eol']]) )
-            
+
             sl = len(source_lines[i])
             tl = len(target_lines[i])
 
 
             new_length = max(sl, tl)
             if new_length % bucket_quant > 0:
-                new_length = ((new_length/bucket_quant) + 1 ) * bucket_quant    
-            
+                new_length = ((new_length/bucket_quant) + 1 ) * bucket_quant
+
             s_padding = np.array( [source_vocab['padding'] for ctr in xrange(sl, new_length) ] )
 
-            # NEED EXTRA PADDING FOR TRAINING.. 
+            # NEED EXTRA PADDING FOR TRAINING..
             t_padding = np.array( [target_vocab['padding'] for ctr in xrange(tl, new_length + 1) ] )
 
             source_lines[i] = np.concatenate( [ source_lines[i], s_padding ] )
@@ -111,8 +111,8 @@ class Data_Loader:
                 buckets[new_length] = [(source_lines[i], target_lines[i])]
 
             if i%1000 == 0:
-                print "Loading", i
-            
+                print("Loading", i)
+
         return buckets
 
     def build_vocab(self, sentences):
@@ -136,7 +136,7 @@ class Data_Loader:
         return indices
 
     def inidices_to_string(self, sentence, vocab):
-        id_ch = { vocab[ch] : ch for ch in vocab } 
+        id_ch = { vocab[ch] : ch for ch in vocab }
         sent = []
         for c in sentence:
             if id_ch[c] == 'eol':
@@ -164,15 +164,15 @@ def main():
         'bucket_quant' : 25,
     }
     gen_options = {
-        'model_type' : 'generator', 
+        'model_type' : 'generator',
         'dir_name' : 'Data',
     }
 
     dl = Data_Loader(gen_options)
     text_samples, vocab = dl.load_generator_data( 1000 )
-    print dl.inidices_to_string(text_samples[1], vocab)
-    print text_samples.shape
-    print np.max(text_samples)
+    print(dl.inidices_to_string(text_samples[1], vocab))
+    print(text_samples.shape)
+    print(np.max(text_samples))
     # buckets, source_vocab, target_vocab = dl.load_translation_data()
 
 if __name__ == '__main__':
