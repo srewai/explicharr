@@ -30,10 +30,6 @@ def main():
                         decoded sentences""")
     parser.add_argument('-no_cuda', action='store_true')
 
-    # opt = parser.parse_args("-batch_size 6 \
-    # -model baseline/model.chkpt \
-    # -vocab baseline/data.pt \
-    # -src ../../mock/test.nen".split())
     opt = parser.parse_args()
     opt.cuda = not opt.no_cuda
 

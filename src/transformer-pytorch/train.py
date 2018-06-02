@@ -192,7 +192,6 @@ def main():
 
     parser.add_argument('-no_cuda', action='store_true')
 
-    # opt = parser.parse_args("-data baseline/data.pt -save_model baseline/model -save_mode best -proj_share_weight".split())
     opt = parser.parse_args()
     opt.cuda = not opt.no_cuda
     opt.d_word_vec = opt.d_model

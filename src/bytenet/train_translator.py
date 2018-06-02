@@ -5,7 +5,7 @@ import model_config
 import data_loader
 from ByteNet import translator
 import utils
-import shutil
+# import shutil
 # import time
 
 def main():
@@ -81,7 +81,7 @@ def main():
     if args.resume_model:
         saver.restore(sess, args.resume_model)
 
-    shutil.rmtree('Data/tb_summaries/translator_model')
+    # shutil.rmtree('Data/tb_summaries/translator_model')
     # train_writer = tf.summary.FileWriter('Data/tb_summaries/translator_model', sess.graph)
 
     bucket_sizes = sorted(buckets.keys())

@@ -84,6 +84,8 @@ class Data_Loader:
         target_vocab = self.target_vocab
 
         buckets = {}
+        indices = {}
+        self.indices = indices # hack to keep track of original sentence
         for i in range(len(source_lines)):
 
             source_lines[i] = np.concatenate( (source_lines[i], [source_vocab['eol']]) )
@@ -106,8 +108,10 @@ class Data_Loader:
 
             if new_length in buckets:
                 buckets[new_length].append( (source_lines[i], target_lines[i]) )
+                indices[new_length].append(i)
             else:
                 buckets[new_length] = [(source_lines[i], target_lines[i])]
+                indices[new_length] = [i]
 
             # if i%1000 == 0: print("Loading", i)
 
@@ -131,8 +135,7 @@ class Data_Loader:
 
     def string_to_indices(self, sentence, vocab):
         unknown = vocab[' ']
-        indices = [ vocab.get(s, unknown) for s in sentence ]
-        return indices
+        return [vocab.get(s, unknown) for s in sentence]
 
     def inidices_to_string(self, sentence, vocab):
         id_ch = { vocab[ch] : ch for ch in vocab }
