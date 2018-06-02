@@ -30,9 +30,9 @@ class MultiHeadAttention(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-        init.xavier_normal(self.w_qs)
-        init.xavier_normal(self.w_ks)
-        init.xavier_normal(self.w_vs)
+        init.xavier_normal_(self.w_qs)
+        init.xavier_normal_(self.w_ks)
+        init.xavier_normal_(self.w_vs)
 
     def forward(self, q, k, v, attn_mask=None):
 
@@ -59,7 +59,7 @@ class MultiHeadAttention(nn.Module):
         outputs, attns = self.attention(q_s, k_s, v_s, attn_mask=attn_mask.repeat(n_head, 1, 1))
 
         # back to original mb_size batch, result size = mb_size x len_q x (n_head*d_v)
-        outputs = torch.cat(torch.split(outputs, mb_size, dim=0), dim=-1) 
+        outputs = torch.cat(torch.split(outputs, mb_size, dim=0), dim=-1)
 
         # project back to residual size
         outputs = self.proj(outputs)

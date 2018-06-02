@@ -40,9 +40,9 @@ def train_epoch(model, training_data, crit, optimizer):
 
     model.train()
 
-    total_loss = 0
-    n_total_words = 0
-    n_total_correct = 0
+    total_loss = 0.0
+    n_total_words = 0.0
+    n_total_correct = 0.0
 
     for batch in tqdm(
             training_data, mininterval=2,
@@ -65,21 +65,21 @@ def train_epoch(model, training_data, crit, optimizer):
         optimizer.update_learning_rate()
 
         # note keeping
-        n_words = gold.data.ne(Constants.PAD).sum()
-        n_total_words += n_words
-        n_total_correct += n_correct
-        total_loss += loss.data[0]
+        total_loss += float(loss)
+        n_total_correct += float(n_correct)
+        n_total_words += float(gold.data.ne(Constants.PAD).sum())
+        del loss, n_correct, pred
 
-    return total_loss/n_total_words, n_total_correct/n_total_words
+    return total_loss / n_total_words, n_total_correct / n_total_words
 
 def eval_epoch(model, validation_data, crit):
     ''' Epoch operation in evaluation phase '''
 
     model.eval()
 
-    total_loss = 0
-    n_total_words = 0
-    n_total_correct = 0
+    total_loss = 0.0
+    n_total_words = 0.0
+    n_total_correct = 0.0
 
     for batch in tqdm(
             validation_data, mininterval=2,
@@ -94,12 +94,12 @@ def eval_epoch(model, validation_data, crit):
         loss, n_correct = get_performance(crit, pred, gold)
 
         # note keeping
-        n_words = gold.data.ne(Constants.PAD).sum()
-        n_total_words += n_words
-        n_total_correct += n_correct
-        total_loss += loss.data[0]
+        total_loss += float(loss)
+        n_total_correct += float(n_correct)
+        n_total_words += float(gold.data.ne(Constants.PAD).sum())
+        del loss, n_correct, pred
 
-    return total_loss/n_total_words, n_total_correct/n_total_words
+    return total_loss / n_total_words, n_total_correct / n_total_words
 
 def train(model, training_data, validation_data, crit, optimizer, opt):
     ''' Start training '''
@@ -136,7 +136,7 @@ def train(model, training_data, validation_data, crit, optimizer, opt):
                     ppl=math.exp(min(valid_loss, 100)), accu=100*valid_accu,
                     elapse=(time.time()-start)/60))
 
-        valid_accus += [valid_accu]
+        valid_accus.append(valid_accu)
 
         model_state_dict = model.state_dict()
         checkpoint = {
@@ -192,6 +192,7 @@ def main():
 
     parser.add_argument('-no_cuda', action='store_true')
 
+    # opt = parser.parse_args("-data baseline/data.pt -save_model baseline/model -save_mode best -proj_share_weight".split())
     opt = parser.parse_args()
     opt.cuda = not opt.no_cuda
     opt.d_word_vec = opt.d_model

@@ -114,11 +114,13 @@ class DataLoader(object):
                 [pos_i+1 if w_i != Constants.PAD else 0 for pos_i, w_i in enumerate(inst)]
                 for inst in inst_data])
 
-        
-            inst_data_tensor = Variable(
-                torch.LongTensor(inst_data), volatile=self.test)
-            inst_position_tensor = Variable(
-                torch.LongTensor(inst_position), volatile=self.test)
+            if self.test:
+                with torch.no_grad():
+                    inst_data_tensor = Variable(torch.LongTensor(inst_data))
+                    inst_position_tensor = Variable(torch.LongTensor(inst_position))
+            else:
+                inst_data_tensor = Variable(torch.LongTensor(inst_data))
+                inst_position_tensor = Variable(torch.LongTensor(inst_position))
 
             if self.cuda:
                 inst_data_tensor = inst_data_tensor.cuda()
