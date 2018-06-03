@@ -1,13 +1,8 @@
-'''
-June 2017 by kyubyong park.
-kbpark.linguist@gmail.com.
-https://www.github.com/kyubyong/transformer
-'''
-from data_load import get_batch_data, load_de_vocab, load_en_vocab
+from data_load import get_batch_data, load_vocab
 from hyperparams import Hyperparams as hp
 from modules import *
 from tqdm import tqdm
-import os, codecs
+import os
 import tensorflow as tf
 
 
@@ -16,8 +11,8 @@ class Graph():
         if is_training:
             self.x, self.y, self.num_batch = get_batch_data() # (N, T)
         else: # inference
-            self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
-            self.y = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
+            self.x = tf.placeholder(tf.int32, shape=(None, hp.max_len))
+            self.y = tf.placeholder(tf.int32, shape=(None, hp.max_len))
 
         # Encoder
         with tf.variable_scope("encoder"):
@@ -37,7 +32,7 @@ class Graph():
                                   scope="enc_pe")
             else:
                 self.enc += embedding(tf.tile(tf.expand_dims(tf.range(tf.shape(self.x)[1]), 0), [tf.shape(self.x)[0], 1]),
-                                  vocab_size=hp.maxlen,
+                                  vocab_size=hp.max_len,
                                   num_units=hp.hidden_units,
                                   zero_pad=False,
                                   scale=False,
@@ -81,14 +76,14 @@ class Graph():
             ## Positional Encoding
             if hp.sinusoid:
                 self.dec += positional_encoding(self.decoder_inputs,
-                                  vocab_size=hp.maxlen,
+                                  vocab_size=hp.max_len,
                                   num_units=hp.hidden_units,
                                   zero_pad=False,
                                   scale=False,
                                   scope="dec_pe")
             else:
                 self.dec += embedding(tf.tile(tf.expand_dims(tf.range(tf.shape(self.decoder_inputs)[1]), 0), [tf.shape(self.decoder_inputs)[0], 1]),
-                                  vocab_size=hp.maxlen,
+                                  vocab_size=hp.max_len,
                                   num_units=hp.hidden_units,
                                   zero_pad=False,
                                   scale=False,
@@ -149,32 +144,28 @@ class Graph():
 
 if __name__ == '__main__':
 
-    # Load vocabulary
-    de2idx, idx2de = load_de_vocab()
-    en2idx, idx2en = load_en_vocab()
+    src2idx, idx2src = load_vocab(os.path.join(hp.logdir, "vocab.src"))
+    tgt2idx, idx2tgt = load_vocab(os.path.join(hp.logdir, "vocab.tgt"))
 
-    # Construct graph
-    g = Graph(len(de2idx), len(en2idx), "train")
-    print("Graph loaded")
+    g = Graph(len(idx2src), len(idx2tgt), "train")
 
-    # Start session
     sess = tf.InteractiveSession()
-    sess.run(tf.global_variables_initializer())
+    tf.global_variables_initializer().run()
 
-    wtr = tf.summary.FileWriter(hp.logdir, tf.get_default_graph())
+    # wtr = tf.summary.FileWriter(hp.logdir, tf.get_default_graph())
+    wtr = tf.summary.FileWriter(hp.logdir)
     svr = tf.train.Saver(max_to_keep= None)
 
-    summ_step = tf.summary.scalar('loss', g.mean_loss), g.train_op
+    summ_up = tf.summary.scalar('loss', g.mean_loss), g.train_op
 
     print("training for {} batches per epoch".format(g.num_batch))
     step = 0
     for epoch in range(hp.num_epochs):
         for _ in tqdm(range(g.num_batch), ncols= 70):
-            summ, _ = sess.run(summ_step)
+            summ, _ = sess.run(summ_up)
             step += 1
             if not (step % 32): wtr.add_summary(summ, step)
         svr.save(sess, save_path= "{}/m{}".format(hp.logdir, epoch), global_step= step)
 
     wtr.close()
     sess.close()
-    print("Done")

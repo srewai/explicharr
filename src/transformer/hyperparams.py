@@ -1,10 +1,3 @@
-'''
-June 2017 by kyubyong park.
-kbpark.linguist@gmail.com.
-https://www.github.com/kyubyong/transformer
-'''
-
-
 class Hyperparams:
     '''Hyperparameters'''
      # data
@@ -17,7 +10,7 @@ class Hyperparams:
     lr = 0.0001 # learning rate. In paper, learning rate is adjusted to the global step.
     logdir = 'baseline' # log directory
     # model
-    maxlen = 10 # Maximum number of words in a sentence. alias = T.
+    max_len = 10 # Maximum number of words in a sentence. alias = T.
     min_cnt = 20 # words whose occurred less than min_cnt are encoded as <UNK>.
     hidden_units = 512 # alias = C
     num_blocks = 6 # number of encoder/decoder blocks
@@ -31,16 +24,16 @@ class Hyperparams:
     target_train = '../../mock/train.sen'
     source_test  = '../../mock/test.nen'
     target_test  = '../../mock/test.sen'
-    maxlen = 40 # max len in mock
+    max_len = 24 # max len in mock
     min_cnt = 2
-    batch_size = 6
-    num_epochs = 4
+    batch_size = 16
+    num_epochs = 2
 
     # source_train = '../../data/train.nen'
     # target_train = '../../data/train.sen'
     # source_test  = '../../data/test.nen'
     # target_test  = '../../data/test.sen'
-    # maxlen = 65 # max len in data/test
+    # max_len = 65 # max len in data/test
     # min_cnt = 5
     # batch_size = 32
     # num_epochs = 20
