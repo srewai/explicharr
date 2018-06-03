@@ -18,8 +18,14 @@
     #         -proj_share_weight
 
 
-python3 translate.py \
-        -model baseline/model.chkpt \
-        -vocab baseline/data.pt \
-        -src ../../data/test.nen \
-        -output baseline/pred
+# python3 translate.py \
+    #         -model baseline/model.chkpt \
+    #         -vocab baseline/data.pt \
+    #         -src ../../data/test.nen \
+    #         -output baseline/pred
+
+
+python3 ../bleu.py \
+        --ignore-case \
+        ../../data/test.sen \
+        baseline/pred.sen

@@ -11,10 +11,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description= "corpus-level BLEU score.")
     parser.add_argument('gold', help= "file for the gold-standard sentences")
     parser.add_argument('pred', help= "file for the predicted sentences")
+    parser.add_argument('--ignore-case', action= 'store_true', help= "case insensitive")
     return parser.parse_args()
 
 
 if '__main__' == __name__:
     args = parse_args()
     from utils import load
-    print(bleu(load(args.gold), load(args.pred)))
+    proc = (lambda s: s.lower().split()) if args.ignore_case else str.split
+    print(bleu(load(args.gold, proc= proc), load(args.pred, proc= proc)))
