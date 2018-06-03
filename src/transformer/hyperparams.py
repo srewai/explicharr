@@ -26,21 +26,21 @@ class Hyperparams:
     dropout_rate = 0.1
     sinusoid = False # If True, use sinusoid. If false, positional embedding.
 
-    # # mock the first 12 lines
-    # source_train = '../../mock/train.nen'
-    # target_train = '../../mock/train.sen'
-    # source_test  = '../../mock/test.nen'
-    # target_test  = '../../mock/test.sen'
-    # maxlen = 40 # max len in mock
-    # min_cnt = 2
-    # batch_size = 6
-    # num_epochs = 4
+    # mock the first 12 lines
+    source_train = '../../mock/train.nen'
+    target_train = '../../mock/train.sen'
+    source_test  = '../../mock/test.nen'
+    target_test  = '../../mock/test.sen'
+    maxlen = 40 # max len in mock
+    min_cnt = 2
+    batch_size = 6
+    num_epochs = 4
 
-    source_train = '../../data/train.nen'
-    target_train = '../../data/train.sen'
-    source_test  = '../../data/test.nen'
-    target_test  = '../../data/test.sen'
-    maxlen = 65 # max len in data/test
-    min_cnt = 5
-    batch_size = 32
-    num_epochs = 20
+    # source_train = '../../data/train.nen'
+    # target_train = '../../data/train.sen'
+    # source_test  = '../../data/test.nen'
+    # target_test  = '../../data/test.sen'
+    # maxlen = 65 # max len in data/test
+    # min_cnt = 5
+    # batch_size = 32
+    # num_epochs = 20

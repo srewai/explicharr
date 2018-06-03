@@ -1,7 +1,8 @@
 import tensorflow as tf
-import ByteNet.ops as ops
+import ops
 
-class ByteNet_Translator:
+
+class ByteNetTranslator:
     def __init__(self, options):
         self.options = options
         embedding_channels = 2 * options['residual_channels']
@@ -46,7 +47,7 @@ class ByteNet_Translator:
 
         logits = ops.conv1d(tf.nn.relu(curr_input),
             options['target_vocab_size'], name = 'logits')
-        print("logits", logits)
+        # print("logits", logits)
         logits_flat = tf.reshape(logits, [-1, options['target_vocab_size']])
         target_flat = tf.reshape(target_2, [-1])
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -54,7 +55,7 @@ class ByteNet_Translator:
 
         self.loss = tf.reduce_mean(loss)
         self.arg_max_prediction = tf.argmax(logits_flat, 1)
-        tf.summary.scalar('loss', self.loss)
+        self.summary = tf.summary.scalar('loss', self.loss)
 
     def build_translator(self, reuse = False):
         if reuse:
@@ -94,6 +95,7 @@ class ByteNet_Translator:
         self.t_probs = tf.reshape(probs_flat,
             [-1, tf.shape(logits)[1], options['target_vocab_size']])
 
+
 def main():
     options = {
         'source_vocab_size' : 250,
@@ -108,9 +110,10 @@ def main():
         'encoder_filter_width' : 3,
         'decoder_filter_width' : 3
     }
-    md = ByteNet_Translator(options)
+    md = ByteNetTranslator(options)
     md.build_model()
     md.build_translator(reuse = True)
+
 
 if __name__ == '__main__':
     main()

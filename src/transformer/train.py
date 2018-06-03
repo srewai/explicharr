@@ -12,25 +12,18 @@ import tensorflow as tf
 
 
 class Graph():
-    def __init__(self, is_training=True):
+    def __init__(self, dim_src, dim_tgt, is_training=True):
         if is_training:
             self.x, self.y, self.num_batch = get_batch_data() # (N, T)
         else: # inference
             self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
             self.y = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
 
-        # define decoder inputs
-        self.decoder_inputs = tf.concat((tf.ones_like(self.y[:, :1])*2, self.y[:, :-1]), -1) # 2:<S>
-
-        # Load vocabulary
-        de2idx, idx2de = load_de_vocab()
-        en2idx, idx2en = load_en_vocab()
-
         # Encoder
         with tf.variable_scope("encoder"):
             ## Embedding
             self.enc = embedding(self.x,
-                                  vocab_size=len(de2idx),
+                                  vocab_size=dim_src,
                                   num_units=hp.hidden_units,
                                   scale=True,
                                   scope="enc_embed")
@@ -71,11 +64,16 @@ class Graph():
                     ### Feed Forward
                     self.enc = feedforward(self.enc, num_units=[4*hp.hidden_units, hp.hidden_units])
 
+
+        with tf.variable_scope("target"):
+            # define decoder inputs
+            self.decoder_inputs = tf.concat((tf.ones_like(self.y[:, :1])*2, self.y[:, :-1]), -1) # 2:<S>
+
         # Decoder
         with tf.variable_scope("decoder"):
             ## Embedding
             self.dec = embedding(self.decoder_inputs,
-                                  vocab_size=len(en2idx),
+                                  vocab_size=dim_tgt,
                                   num_units=hp.hidden_units,
                                   scale=True,
                                   scope="dec_embed")
@@ -128,45 +126,45 @@ class Graph():
                     self.dec = feedforward(self.dec, num_units=[4*hp.hidden_units, hp.hidden_units])
 
         # Final linear projection
-        self.logits = tf.layers.dense(self.dec, len(en2idx))
-        self.preds = tf.to_int32(tf.argmax(self.logits, axis= -1))
-        self.istarget = tf.to_float(tf.not_equal(self.y, 0))
-        self.acc = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.y))*self.istarget)/ (tf.reduce_sum(self.istarget))
-        self.summ_acc = tf.summary.scalar('acc', self.acc)
+        with tf.variable_scope("linear_projection"):
+            self.logits = tf.layers.dense(self.dec, dim_tgt)
+            self.preds = tf.to_int32(tf.argmax(self.logits, axis= -1))
+            self.istarget = tf.to_float(tf.not_equal(self.y, 0))
+
+        with tf.variable_scope("accuracy"):
+            self.acc = tf.reduce_sum(tf.to_float(tf.equal(self.preds, self.y))*self.istarget)/ (tf.reduce_sum(self.istarget))
 
         if is_training:
             # Loss
-            self.y_smoothed = label_smoothing(tf.one_hot(self.y, depth=len(en2idx)))
-            self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y_smoothed)
-            self.mean_loss = tf.reduce_sum(self.loss*self.istarget) / (tf.reduce_sum(self.istarget))
+            with tf.variable_scope("loss"):
+                self.y_smoothed = label_smoothing(tf.one_hot(self.y, depth=dim_tgt))
+                self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y_smoothed)
+                self.mean_loss = tf.reduce_sum(self.loss*self.istarget) / (tf.reduce_sum(self.istarget))
 
             # Training Scheme
-            self.step = tf.train.get_or_create_global_step()
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=hp.lr, beta1=0.9, beta2=0.98, epsilon=1e-8)
-            self.train_op = self.optimizer.minimize(self.mean_loss, global_step= self.step)
-
-            # Summary
-            self.summ_loss = tf.summary.scalar('mean_loss', self.mean_loss)
-            self.merged = tf.summary.merge_all()
+            with tf.variable_scope("update"):
+                self.optimizer = tf.train.AdamOptimizer(learning_rate=hp.lr, beta1=0.9, beta2=0.98, epsilon=1e-8)
+                self.train_op = self.optimizer.minimize(self.mean_loss)
 
 
 if __name__ == '__main__':
+
     # Load vocabulary
     de2idx, idx2de = load_de_vocab()
     en2idx, idx2en = load_en_vocab()
 
     # Construct graph
-    g = Graph("train")
+    g = Graph(len(de2idx), len(en2idx), "train")
     print("Graph loaded")
 
     # Start session
     sess = tf.InteractiveSession()
     sess.run(tf.global_variables_initializer())
 
-    wtr = tf.summary.FileWriter(hp.logdir)
+    wtr = tf.summary.FileWriter(hp.logdir, tf.get_default_graph())
     svr = tf.train.Saver(max_to_keep= None)
 
-    summ_step = g.summ_loss, g.train_op
+    summ_step = tf.summary.scalar('loss', g.mean_loss), g.train_op
 
     print("training for {} batches per epoch".format(g.num_batch))
     step = 0
