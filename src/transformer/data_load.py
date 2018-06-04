@@ -3,6 +3,12 @@ import numpy as np
 import os
 
 
+def load(fname):
+    with open(fname) as f:
+        for s in f:
+            yield s.split()
+
+
 def load_vocab(fname):
     idx2word = []
     with open(fname) as f:
@@ -16,33 +22,26 @@ def load_vocab(fname):
 class DataLoader:
 
     def __init__(self, source, target):
+        # TODO make target optional
         src2idx, idx2src = load_vocab(os.path.join(hp.logdir, "vocab.src"))
         tgt2idx, idx2tgt = load_vocab(os.path.join(hp.logdir, "vocab.tgt"))
-        self._src2idx = src2idx
         self._idx2src = idx2src
-        self._tgt2idx = tgt2idx
         self._idx2tgt = idx2tgt
-        with open(source) as f: src = f.read().splitlines()
-        with open(target) as f: tgt = f.read().splitlines()
-        xs, ys, ss, ts = [], [], [], []
-        for s, t in zip(src, tgt):
-            x = s.split(); x.append("</S>")
-            y = t.split(); y.append("</S>")
-            if max(len(x), len(y)) <= hp.max_len:
-                xs.append(np.fromiter((src2idx.get(w, src2idx["<UNK>"]) for w in x), dtype= np.int32))
-                ys.append(np.fromiter((tgt2idx.get(w, tgt2idx["<UNK>"]) for w in y), dtype= np.int32))
-                ss.append(s)
-                ts.append(t)
-        print(len(xs), "sentences loaded")
-        self._s = ss
-        self._t = ts
-        xx = np.full((len(xs), hp.max_len), src2idx["<PAD>"], np.int32)
-        yy = np.full((len(ys), hp.max_len), tgt2idx["<PAD>"], np.int32)
-        for i, (x, y) in enumerate(zip(xs, ys)):
-            xx[i, 0:len(x)] = x
-            yy[i, 0:len(y)] = y
-        self._x = xx
-        self._y = yy
+        src, tgt = [], []
+        for s, t in zip(load(source), load(target)):
+            s.append("</S>")
+            t.append("</S>")
+            if max(len(s), len(t)) <= hp.max_len:
+                src.append(np.fromiter((src2idx.get(w, src2idx["<UNK>"]) for w in s), dtype= np.int32))
+                tgt.append(np.fromiter((tgt2idx.get(w, tgt2idx["<UNK>"]) for w in t), dtype= np.int32))
+        print(len(src), "sentences loaded")
+        x = np.full((len(src), hp.max_len), src2idx["<PAD>"], np.int32)
+        y = np.full((len(tgt), hp.max_len), tgt2idx["<PAD>"], np.int32)
+        for i, (s, t) in enumerate(zip(src, tgt)):
+            x[i, 0:len(s)] = s
+            y[i, 0:len(t)] = t
+        self._x = x
+        self._y = y
 
     @property
     def dim_src(self):
@@ -64,3 +63,19 @@ class DataLoader:
                               .batch(hp.batch_size) \
                               .make_one_shot_iterator() \
                               .get_next()
+
+    def batch_x(self):
+        batch_size = hp.batch_size
+        i, x = 0, self._x
+        while i < len(x):
+            j = i + batch_size
+            yield x[i:j]
+            i = j
+
+    def idx2tgt(self, idxs):
+        end = self._idx2tgt.index("</S>")
+        tgt = []
+        for idx in idxs:
+            if idx == end: break
+            tgt.append(self._idx2tgt[idx])
+        return " ".join(tgt)
