@@ -1,4 +1,4 @@
-from data_load import get_batch_data, load_vocab
+from data_load import DataLoader
 from hyperparams import Hyperparams as hp
 from modules import *
 from tqdm import tqdm
@@ -6,10 +6,13 @@ import os
 import tensorflow as tf
 
 
-class Graph():
-    def __init__(self, dim_src, dim_tgt, is_training=True):
+class Model():
+    def __init__(self, dl, is_training=True):
+        dim_src = dl.dim_src
+        dim_tgt = dl.dim_tgt
+
         if is_training:
-            self.x, self.y, self.num_batch = get_batch_data() # (N, T)
+            self.x, self.y = dl.batches()
         else: # inference
             self.x = tf.placeholder(tf.int32, shape=(None, hp.max_len))
             self.y = tf.placeholder(tf.int32, shape=(None, hp.max_len))
@@ -62,7 +65,8 @@ class Graph():
 
         with tf.variable_scope("target"):
             # define decoder inputs
-            self.decoder_inputs = tf.concat((tf.ones_like(self.y[:, :1])*2, self.y[:, :-1]), -1) # 2:<S>
+            s = dl._tgt2idx["<S>"]
+            self.decoder_inputs = tf.concat((tf.ones_like(self.y[:, :1])*s, self.y[:, :-1]), -1)
 
         # Decoder
         with tf.variable_scope("decoder"):
@@ -144,10 +148,9 @@ class Graph():
 
 if __name__ == '__main__':
 
-    src2idx, idx2src = load_vocab(os.path.join(hp.logdir, "vocab.src"))
-    tgt2idx, idx2tgt = load_vocab(os.path.join(hp.logdir, "vocab.tgt"))
+    dl = DataLoader(hp.source_train, hp.target_train)
 
-    g = Graph(len(idx2src), len(idx2tgt), "train")
+    g = Model(dl, "train")
 
     sess = tf.InteractiveSession()
     tf.global_variables_initializer().run()
@@ -158,10 +161,10 @@ if __name__ == '__main__':
 
     summ_up = tf.summary.scalar('loss', g.mean_loss), g.train_op
 
-    print("training for {} batches per epoch".format(g.num_batch))
+    print("training for {} batches per epoch".format(dl.num_bat))
     step = 0
     for epoch in range(hp.num_epochs):
-        for _ in tqdm(range(g.num_batch), ncols= 70):
+        for _ in tqdm(range(dl.num_bat), ncols= 70):
             summ, _ = sess.run(summ_up)
             step += 1
             if not (step % 32): wtr.add_summary(summ, step)

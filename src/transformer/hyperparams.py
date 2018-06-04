@@ -24,7 +24,7 @@ class Hyperparams:
     target_train = '../../mock/train.sen'
     source_test  = '../../mock/test.nen'
     target_test  = '../../mock/test.sen'
-    max_len = 24 # max len in mock
+    max_len = 25 # 24 words ~ 64 chars
     min_cnt = 2
     batch_size = 16
     num_epochs = 2
@@ -33,7 +33,7 @@ class Hyperparams:
     # target_train = '../../data/train.sen'
     # source_test  = '../../data/test.nen'
     # target_test  = '../../data/test.sen'
-    # max_len = 65 # max len in data/test
+    # max_len = 100 # 99 words ~ 256 chars
     # min_cnt = 5
     # batch_size = 32
     # num_epochs = 20

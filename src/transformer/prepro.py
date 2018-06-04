@@ -5,6 +5,7 @@ import os
 
 def make_vocab(fpath, fname):
     with open(fpath) as f: word2freq = Counter(f.read().split())
+    # TODO remove send over max_len
     with open(os.path.join(hp.logdir, fname), 'w') as f:
         print("<PAD>\t9999\n<UNK>\t9999\n<S>\t9999\n</S>\t9999", file= f)
         for word, freq in word2freq.most_common(len(word2freq)):
