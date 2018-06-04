@@ -12,22 +12,15 @@ m = Model(dl, training= False)
 
 import tensorflow as tf
 sess = tf.InteractiveSession()
-checkpoint = tf.train.latest_checkpoint(hp.logdir)
-tf.train.Saver().restore(sess, checkpoint)
+svr = tf.train.Saver(max_to_keep= 1e9)
 
-with open(checkpoint + ".pred", 'w') as f:
-    for x in dl.batch_x():
-        pred = np.zeros_like(x, np.int32)
-        for i in range(hp.max_len):
-            pred[:,i] = sess.run(m.preds, {m.x: x, m.y: pred})[:,i]
-        for p in pred:
-            print(dl.idx2tgt(p), file= f)
-
-
-def idx2tgt(idxs):
-    end = dl._idx2tgt.index("</S>")
-    tgt = []
-    for idx in idxs:
-        if idx == end: break
-        tgt.append(dl._idx2tgt[idx])
-    return " ".join(tgt)
+for e in range(19):
+    ckpt = "{}/m{:02d}".format(hp.logdir, e)
+    svr.restore(sess, ckpt)
+    with open(ckpt + ".pred", 'w') as f:
+        for x in dl.batch_x():
+            pred = np.zeros_like(x, np.int32)
+            for i in range(hp.max_len):
+                pred[:,i] = sess.run(m.preds, {m.x: x, m.y: pred})[:,i]
+            for p in pred:
+                print(dl.idx2tgt(p), file= f)
