@@ -22,7 +22,7 @@ sess = tf.InteractiveSession()
 
 # wtr = tf.summary.FileWriter(hp.logdir, tf.get_default_graph())
 wtr = tf.summary.FileWriter(hp.logdir)
-svr = tf.train.Saver(max_to_keep= 1e9)
+svr = tf.train.Saver(max_to_keep= None)
 
 if ckpt:
     svr.restore(sess, ckpt)

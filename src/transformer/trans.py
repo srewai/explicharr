@@ -12,7 +12,7 @@ m = Model(dl, training= False)
 
 import tensorflow as tf
 sess = tf.InteractiveSession()
-svr = tf.train.Saver(max_to_keep= 1e9)
+svr = tf.train.Saver(max_to_keep= None)
 
 for e in range(19):
     ckpt = "{}/m{:02d}".format(hp.logdir, e)
