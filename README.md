@@ -17,3 +17,8 @@ automatic text simplification with deep learning approach
 - [pytorch](https://github.com/jadore801120/attention-is-all-you-need-pytorch) 0.2544
 - [tensorflow](https://github.com/Kyubyong/transformer) 0.1530
 - [tensor2tensor](https://github.com/tensorflow/tensor2tensor)
+
+# details
+
+- [layer normalization](https://arxiv.org/abs/1607.06450)
+- [label smoothing](https://arxiv.org/abs/1512.00567)

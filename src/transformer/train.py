@@ -11,7 +11,7 @@ epochs = range(20, 40)
 from hyperparams import Hyperparams as hp
 from tqdm import tqdm
 
-from data_load import DataLoader
+from utils import DataLoader
 dl = DataLoader(hp.source_train, hp.target_train)
 
 from model import Model

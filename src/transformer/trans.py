@@ -4,7 +4,7 @@
 from hyperparams import Hyperparams as hp
 import numpy as np
 
-from data_load import DataLoader
+from utils import DataLoader
 dl = DataLoader(hp.source_test, hp.target_test)
 
 from model import Model
