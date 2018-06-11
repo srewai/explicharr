@@ -18,7 +18,7 @@ src = np.load("trial/data/src_valid.npy")
 src = batch(src, batch_size, shuffle= False, repeat= False)
 
 m = model(src= src, len_cap= len_cap, training= False)
-m.z = m.pred[:,-1]
+m.p = m.pred[:,-1]
 
 saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
@@ -34,10 +34,10 @@ with open(ckpt + ".pred", 'w') as f:
             x = np.full((len(w), len_cap), end, dtype= np.int32)
             x[:,0] = pad
             for i in tqdm(range(1, 1 + len_cap), ncols= 70):
-                z = sess.run(m.z, {m.w: w, m.x: x[:,:i]})
-                if np.alltrue(z == end): break
-                x[:,i] = z
-            for i in x:
-                print(decode(idx, i), file= f)
+                p = sess.run(m.p, {m.w: w, m.x: x[:,:i]})
+                if np.alltrue(p == end): break
+                x[:,i] = p
+            for p in x:
+                print(decode(idx, p), file= f)
         except tf.errors.OutOfRangeError:
             pass

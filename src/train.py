@@ -28,7 +28,7 @@ src, tgt = batch((src_valid, tgt_valid), batch_size= batch_size)
 path = expanduser("~/cache/tensorboard-logdir/explicharr/trial{}".format(trial))
 wtr_train = tf.summary.FileWriter(join(path, 'train'))
 wtr_valid = tf.summary.FileWriter(join(path, 'valid'))
-# wtr = tf.summary.FileWriter(join(path, 'graph'))
+# wtr = tf.summary.FileWriter(join(path, 'graph'), tf.get_default_graph())
 saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
 

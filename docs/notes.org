@@ -3,3 +3,12 @@
 - "\xa0" non-breaking space, for unknown char
 - "\x0a" newline, for end of sequence
 - "\x20" space, for token boundry
+
+* todo
+
+- try smaller net
+- try half middle layers
+- add relu to dense layers after middle layers
+- try longer sent
+- weight tying ???? https://arxiv.org/abs/1608.05859
+- beam search
