@@ -9,6 +9,8 @@ def mock(pathi, patho, src, tgt, rst= "rest", max_len= 512):
          open(os.path.join(pathi, tgt)) as ft:
         for st in zip(fs, ft):
             ls, lt = map(len, st)
+            ls += 1 # begin padding
+            lt += 1
             (keep if max(ls, lt) <= max_len else rest).append(
                 (ls + lt, ls, lt, st))
     keep.sort()
