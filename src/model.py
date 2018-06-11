@@ -7,7 +7,7 @@ def placeholder(x, dtype, shape):
     if x is None:
         return tf.placeholder(dtype, shape)
     else:
-        return tf.placeholder_with_default(tf.convert_to_tensor(x, dtype), shape)
+        return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
 def count(tensor, item, axis= None):

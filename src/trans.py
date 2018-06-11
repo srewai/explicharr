@@ -33,11 +33,11 @@ with open(ckpt + ".pred", 'w') as f:
             w = sess.run(m.w)
             x = np.full((len(w), len_cap), end, dtype= np.int32)
             x[:,0] = pad
-            for i in tqdm(range(1, 1 + len_cap), ncols= 70):
+            for i in tqdm(range(1, len_cap), ncols= 70):
                 z = sess.run(m.z, {m.w: w, m.x: x[:,:i]})
                 if np.alltrue(z == end): break
                 x[:,i] = z
             for i in x:
                 print(decode(idx, i), file= f)
         except tf.errors.OutOfRangeError:
-            pass
+            break
