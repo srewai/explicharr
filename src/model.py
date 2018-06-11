@@ -32,7 +32,6 @@ def multihead_attention(value, query, dense, dim, num_head= 8, mask= None, name=
         return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)              # b,t,dh
 
 
-# TODO efficient generation
 def model(end= 1
           , src= None, dim_src= 256, len_src= None
           , tgt= None, dim_tgt= 256, len_tgt= None
@@ -45,10 +44,15 @@ def model(end= 1
           , smooth= 0.1
           , dropout= 0.1
           , warmup= 4e3):
-    # src : b,s
-    # tgt : b,t
+    # src : ?, len_src
+    # tgt : ?, len_tgt
     # both should be padded at the end (with `end`)
     # tgt (or both) should be padded at the beginning
+    #
+    # as an autoregressive model, this is a function : w, x -> y
+    # encoded src, dense w : ?, len_src, dim
+    # tgt history, index x : ?, len_tgt
+    # current tgt, logit y : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
     self = Record()
     # if `len_src` unspecified, trim to the maximum valid index among the batch
@@ -57,7 +61,7 @@ def model(end= 1
         if len_src is None:
             shape = tf.shape(src)
             len_src = shape[1] - count(count(src, end, 0), shape[0]) + 1
-            len_src = tf.minimum(len_src, len_cap)
+        len_src = tf.minimum(len_src, len_cap)
         src = src[:,:len_src]
     # same for `len_tgt`, but with one less index
     with tf.variable_scope('tgt'):
@@ -65,7 +69,7 @@ def model(end= 1
         if len_tgt is None:
             shape = tf.shape(tgt)
             len_tgt = shape[1] - count(count(tgt, end, 0), shape[0])
-            len_tgt = tf.minimum(len_tgt, len_cap)
+        len_tgt = tf.minimum(len_tgt, len_cap)
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # building blocks
     if training and dropout is not None:
@@ -92,7 +96,9 @@ def model(end= 1
                 x = norm(x + dropout(attention(x, x)))
                 r = dense(x, dim_mid, activation= act, name= 'relu')
                 x = norm(x + dropout(dense(r, dim))) # why no activation ????
+    self.w, self.x = x, tgt
     with tf.variable_scope('decode'):
+        len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
         with tf.variable_scope('embed'):
             y = tf.gather(tf.get_variable('tgt', (dim_tgt, dim), tf.float32, kinit), tgt)
             y += pos[:len_tgt]
@@ -106,6 +112,7 @@ def model(end= 1
                 r = dense(y, dim_mid, activation= act, name= 'relu')
                 y = norm(y + dropout(dense(r, dim))) # why no activation ????
         logit = dense(y, dim_tgt, name= 'logit')
+    self.y = logit[:,-1]
     with tf.variable_scope('pred'): pred = self.pred = tf.to_int32(tf.argmax(logit, -1))
     with tf.variable_scope('acc'):
         mask = tf.to_float(tf.not_equal(gold, end))

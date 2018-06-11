@@ -16,18 +16,17 @@ from utils import batch
 import numpy as np
 import tensorflow as tf
 
-src_train = np.load("tmp/data/src_train.npy")
-tgt_train = np.load("tmp/data/tgt_train.npy")
-src_valid = np.load("tmp/data/src_valid.npy")
-tgt_valid = np.load("tmp/data/tgt_valid.npy")
+src_train = np.load("trial/data/src_train.npy")
+tgt_train = np.load("trial/data/tgt_train.npy")
+src_valid = np.load("trial/data/src_valid.npy")
+tgt_valid = np.load("trial/data/tgt_valid.npy")
 
 src, tgt = map(tf.to_int32, batch((src_train, tgt_train), batch_size= batch_size))
-m = model(src= src, tgt= tgt, len_cap= len_cap
-          , dim= 64, dim_mid= 128, num_layer= 3, num_head= 4)
+m = model(src= src, tgt= tgt, len_cap= len_cap)
 
 src, tgt = batch((src_valid, tgt_valid), batch_size= batch_size)
 
-# wtr = tf.summary.FileWriter("tmp/graph", tf.get_default_graph())
+# wtr = tf.summary.FileWriter("trial/graph", tf.get_default_graph())
 wtr = tf.summary.FileWriter(expanduser("~/cache/tensorboard-logdir/explicharr/trial" + trial))
 svr = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
@@ -45,6 +44,6 @@ while True:
         summ, step, _ = sess.run(summ_up)
         if not (step % step_eval):
             wtr.add_summary(summ, step)
-            summ = sess.run(summ_ev, feed_dict= {m.src: src.eval(), m.tgt: tgt.eval()})
+            summ = sess.run(summ_ev, {m.src: src.eval(), m.tgt: tgt.eval()})
             wtr.add_summary(summ, step)
-    svr.save(sess, save_path= "tmp/model/m", step)
+    svr.save(sess, save_path= "trial/model/m", step)
