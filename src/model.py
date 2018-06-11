@@ -10,8 +10,8 @@ def placeholder(x, dtype, shape):
         return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
-def count(tensor, item, axis= None):
-    return tf.to_int32(tf.reduce_sum(tf.to_float(tf.equal(tensor, item)), axis))
+def count(tensor, item, relation= tf.equal, axis= 0):
+    return tf.to_int32(tf.reduce_sum(tf.to_float(relation(tensor, item)), axis))
 
 
 def sinusoid(n, t):
@@ -23,7 +23,7 @@ def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'a
     # value : b,s,k
     # query : b,t,q
     # mask  :   t,s
-    # ->    : b,t,dim*num_head
+    # ->    : b,t,dh
     dense = lambda x, d, name: tf.layers.dense(x, d, use_bias= False, name= name)
     split = lambda x: tf.split(x, num_head, -1)
     with tf.variable_scope(name):
@@ -35,24 +35,24 @@ def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'a
         return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
-def model(end= 1
-          , src= None, dim_src= 256, len_src= None
-          , tgt= None, dim_tgt= 256, len_tgt= None
-          , dim= 512, dim_mid= 2048, len_cap= 512
+def model(training= True
+          , end= 1,    len_cap= 512
+          , src= None, dim_src= 256
+          , tgt= None, dim_tgt= 256
+          , dim= 512,  dim_mid= 2048
           , num_layer= 6, num_head= 8
-          , act= tf.nn.relu
-          , training= True
-          , smooth= 0.1
+          , activation= tf.nn.relu
           , dropout= 0.1
+          , smooth= 0.1
           , warmup= 4e3):
-    # src : ?, len_src
-    # tgt : ?, len_tgt
+    # src : ?, s
+    # tgt : ?, t
     # both should be padded at the end (with `end`)
     # tgt (or both) should be padded at the beginning
     #
     # as an autoregressive model, this is a function : w, x -> z
-    # encoded src, dense w : ?, len_src, dim
-    # tgt history, index x : ?, len_tgt
+    # encoded src, dense w : ?, s, dim
+    # tgt history, index x : ?, t
     # current tgt, logit z : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
     self = Record()
@@ -68,21 +68,15 @@ def model(end= 1
     dense = tf.layers.dense
     attention = lambda v, q, **args: multihead_attention(
         value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
-    # if `len_src` unspecified, trim to the maximum valid index among the batch
+    # trim `src` to the maximum valid index among the batch
     with tf.variable_scope('src'):
-        src = self.src = placeholder(src, tf.int32, (None, len_src))
-        if len_src is None:
-            shape = tf.shape(src)
-            len_src = shape[1] - count(count(src, end, 0), shape[0]) + 1
-        len_src = tf.minimum(len_src, len_cap)
+        src = self.src = placeholder(src, tf.int32, (None, None))
+        len_src = tf.minimum(len_cap, count(count(src, end), tf.shape(src)[0], tf.not_equal) + 1)
         src = src[:,:len_src]
-    # same for `len_tgt`, but with one less index
+    # same for `tgt`, but with one less index
     with tf.variable_scope('tgt'):
-        tgt = self.tgt = placeholder(tgt, tf.int32, (None, len_tgt))
-        if len_tgt is None:
-            shape = tf.shape(tgt)
-            len_tgt = shape[1] - count(count(tgt, end, 0), shape[0])
-        len_tgt = tf.minimum(len_tgt, len_cap)
+        tgt = self.tgt = placeholder(tgt, tf.int32, (None, None))
+        len_tgt = tf.minimum(len_cap, count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal))
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # embedding with sinusoidal positional encoding
     pos = tf.constant(sinusoid(dim, len_cap), tf.float32, name= 'sinusoid')
@@ -96,7 +90,7 @@ def model(end= 1
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
                 w = norm(w + dropout(attention(w, w)))
-                h = dense(w, dim_mid, activation= act, name= 'relu')
+                h = dense(w, dim_mid, activation, name= 'relu')
                 h = dense(h, dim) # why no activation ????
                 w = norm(w + dropout(h))
     self.w, self.x = w, tgt
@@ -107,7 +101,7 @@ def model(end= 1
             with tf.variable_scope("layer{}".format(i)):
                 x = norm(x + dropout(attention(x, x, mask= mask, name= 'masked_attention')))
                 x = norm(x + dropout(attention(w, x)))
-                h = dense(x, dim_mid, activation= act, name= 'relu')
+                h = dense(x, dim_mid, activation, name= 'relu')
                 h = dense(h, dim) # why no activation ????
                 x = norm(x + dropout(h))
     logit = self.y = dense(x, dim_tgt, name= 'logit')
