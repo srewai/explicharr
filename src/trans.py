@@ -15,12 +15,11 @@ import tensorflow as tf
 
 idx = PointedIndex(np.load("trial/data/idx.npy").item()['idx2tgt'])
 src = np.load("trial/data/src_valid.npy")
-src = batch(src, batch_size, shuffle= False, repeat= False)
 
-m = model(src= src, len_cap= len_cap, training= False)
+m = model(training= False, len_cap= len_cap, src= batch(src, batch_size, shuffle= False, repeat= False))
 m.p = m.pred[:,-1]
 
-saver = tf.train.Saver(max_to_keep= None)
+saver = tf.train.Saver()
 sess = tf.InteractiveSession()
 
 ckpt = tf.train.latest_checkpoint("trial/model/")
@@ -37,7 +36,7 @@ with open(ckpt + ".pred", 'w') as f:
                 p = sess.run(m.p, {m.w: w, m.x: x[:,:i]})
                 if np.alltrue(p == end): break
                 x[:,i] = p
-            for p in x:
+            for p in x[:,1:]:
                 print(decode(idx, p), file= f)
         except tf.errors.OutOfRangeError:
             break

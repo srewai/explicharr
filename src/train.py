@@ -21,7 +21,7 @@ tgt_train = np.load("trial/data/tgt_train.npy")
 src_valid = np.load("trial/data/src_valid.npy")
 tgt_valid = np.load("trial/data/tgt_valid.npy")
 
-src, tgt = map(tf.to_int32, batch((src_train, tgt_train), batch_size= batch_size))
+src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
 m = model(src= src, tgt= tgt, len_cap= len_cap)
 src, tgt = batch((src_valid, tgt_valid), batch_size= batch_size)
 
@@ -29,7 +29,7 @@ path = expanduser("~/cache/tensorboard-logdir/explicharr/trial{}".format(trial))
 wtr_train = tf.summary.FileWriter(join(path, 'train'))
 wtr_valid = tf.summary.FileWriter(join(path, 'valid'))
 # wtr = tf.summary.FileWriter(join(path, 'graph'), tf.get_default_graph())
-saver = tf.train.Saver(max_to_keep= None)
+saver = tf.train.Saver()
 sess = tf.InteractiveSession()
 
 if ckpt:
