@@ -46,4 +46,4 @@ while True:
             wtr.add_summary(summ, step)
             summ = sess.run(summ_ev, {m.src: src.eval(), m.tgt: tgt.eval()})
             wtr.add_summary(summ, step)
-    svr.save(sess, save_path= "trial/model/m", step)
+    svr.save(sess, "trial/model/m", step)
