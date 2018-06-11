@@ -16,14 +16,15 @@ def jagged_array(x, fill, shape, dtype):
     return a
 
 
-def batch(data, batch_size, shuffle= 1e4, repeat= True):
+def batch(data, batch_size, shuffle= 1e4, repeat= True, name= "batch"):
     import tensorflow as tf
-    ds = tf.data.Dataset.from_tensor_slices(data)
-    if shuffle: ds = ds.shuffle(shuffle)
-    if repeat:  ds = ds.repeat()
-    return ds.batch(batch_size) \
-             .make_one_shot_iterator() \
-             .get_next()
+    with tf.variable_scope(name):
+        ds = tf.data.Dataset.from_tensor_slices(data)
+        if shuffle: ds = ds.shuffle(int(shuffle))
+        if repeat:  ds = ds.repeat()
+        return ds.batch(batch_size) \
+                 .make_one_shot_iterator() \
+                 .get_next()
 
 
 def chartab(corpus, top= 256, special= "\xa0\n "):

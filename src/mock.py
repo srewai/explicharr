@@ -3,7 +3,7 @@
 import os
 
 
-def mock(pathi, patho, src, tgt, rst= "rest", max_len= 512):
+def mock(pathi, patho, src, tgt, rst= "rest", len_cap= 512):
     keep, rest = [], []
     with open(os.path.join(pathi, src)) as fs, \
          open(os.path.join(pathi, tgt)) as ft:
@@ -11,7 +11,7 @@ def mock(pathi, patho, src, tgt, rst= "rest", max_len= 512):
             ls, lt = map(len, st)
             ls += 1 # begin padding
             lt += 1
-            (keep if max(ls, lt) <= max_len else rest).append(
+            (keep if max(ls, lt) <= len_cap else rest).append(
                 (ls + lt, ls, lt, st))
     keep.sort()
     rest.sort()
@@ -26,6 +26,8 @@ def mock(pathi, patho, src, tgt, rst= "rest", max_len= 512):
             print(t, end= "", file= fr)
 
 
-if '__main__' == __name__:
-    mock(pathi= "../data", patho= "../mock", src= "train.nen", tgt= "train.sen", rst= "train", max_len= 64)
-    mock(pathi= "../data", patho= "../mock", src= "test.nen",  tgt= "test.sen",  rst= "test",  max_len= 64)
+len_cap = 128
+
+
+mock(pathi= "../data", patho= "../mock", src= "train.nen", tgt= "train.sen", rst= "train", len_cap= len_cap)
+mock(pathi= "../data", patho= "../mock", src= "test.nen",  tgt= "test.sen",  rst= "test",  len_cap= len_cap)

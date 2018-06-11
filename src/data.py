@@ -21,6 +21,7 @@ tgt = jagged_array(tgt, fill= idx2tgt("\n"), shape= (len(tgt), max(map(len, tgt)
 np.save("tmp/data/src_train", src)
 np.save("tmp/data/tgt_train", tgt)
 
+
 src = load(path + "test.nen")
 tgt = load(path + "test.sen")
 
