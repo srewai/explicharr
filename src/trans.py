@@ -7,10 +7,10 @@ ckpt = None
 
 
 from model import model
+from tqdm import tqdm
 from utils import batch, PointedIndex, decode
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 
 
 idx = PointedIndex(np.load("trial/data/idx.npy").item()['idx2tgt'])
@@ -20,11 +20,11 @@ src = batch(src, batch_size, shuffle= False, repeat= False)
 m = model(src= src, len_cap= len_cap, training= False)
 m.z = m.pred[:,-1]
 
-svr = tf.train.Saver(max_to_keep= None)
+saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
 
 ckpt = tf.train.latest_checkpoint("trial/model/")
-svr.restore(sess, ckpt)
+saver.restore(sess, ckpt)
 
 pad, end = idx(' '), idx("\n")
 with open(ckpt + ".pred", 'w') as f:

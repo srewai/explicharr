@@ -19,17 +19,20 @@ def sinusoid(n, t):
     return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
 
 
-def multihead_attention(value, query, dense, dim, num_head= 8, mask= None, name= 'attention'):
+def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'attention'):
     # value : b,s,k
     # query : b,t,q
     # mask  :   t,s
+    # ->    : b,t,dim*num_head
+    dense = tf.layers.dense
+    split = lambda x: tf.split(x, num_head, -1)
     with tf.variable_scope(name):
-        v = tf.stack(tf.split(dense(value, dim * num_head, name= 'v'), num_head, -1)) # h,b,s,d
-        k = tf.stack(tf.split(dense(value, dim * num_head, name= 'k'), num_head, -1)) # h,b,s,d
-        q = tf.stack(tf.split(dense(query, dim * num_head, name= 'q'), num_head, -1)) # h,b,t,d
-        q = (dim ** -0.5) * tf.matmul(q, k, transpose_b= True)                        # h,b,t,s
+        v = tf.stack(split(dense(value, dim * num_head, name= 'v'))) # h,b,s,d
+        k = tf.stack(split(dense(value, dim * num_head, name= 'k'))) # h,b,s,d
+        q = tf.stack(split(dense(query, dim * num_head, name= 'q'))) # h,b,t,d
+        q = (dim ** -0.5) * tf.matmul(q, k, transpose_b= True)       # h,b,t,s
         if mask is not None: q += tf.log(mask)
-        return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)              # b,t,dh
+        return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
 def model(end= 1
@@ -37,8 +40,6 @@ def model(end= 1
           , tgt= None, dim_tgt= 256, len_tgt= None
           , dim= 512, dim_mid= 2048, len_cap= 512
           , num_layer= 6, num_head= 8
-          , kinit= tf.orthogonal_initializer()
-          , binit= tf.zeros_initializer()
           , act= tf.nn.relu
           , training= True
           , smooth= 0.1
@@ -80,15 +81,14 @@ def model(end= 1
     else:
         dropout = lambda x: x
     norm = tf.contrib.layers.layer_norm
-    dense = lambda x, d, **args: tf.layers.dense(
-        inputs= x, units= d, kernel_initializer= kinit, bias_initializer= binit, **args)
+    dense = tf.layers.dense
     attention = lambda v, q, **args: multihead_attention(
-        value= v, query= q, dense= dense, dim= dim // num_head, num_head= num_head, **args)
+        value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     pos = tf.constant(sinusoid(dim, len_cap), tf.float32, name= 'sinusoid')
     # construction
     with tf.variable_scope('encode'):
         with tf.variable_scope('embed'):
-            x = tf.gather(tf.get_variable('src', (dim_src, dim), tf.float32, kinit), src)
+            x = tf.gather(tf.get_variable('src', (dim_src, dim), tf.float32), src)
             x += pos[:len_src]
             x = dropout(x)
         for i in range(num_layer):
@@ -100,7 +100,7 @@ def model(end= 1
     with tf.variable_scope('decode'):
         len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
         with tf.variable_scope('embed'):
-            y = tf.gather(tf.get_variable('tgt', (dim_tgt, dim), tf.float32, kinit), tgt)
+            y = tf.gather(tf.get_variable('tgt', (dim_tgt, dim), tf.float32), tgt)
             y += pos[:len_tgt]
             y = dropout(y)
         with tf.variable_scope('mask'):

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
 
-trial = '01'
-len_cap = 128
-batch_size = 32
-step_eval = 1000
-step_save = 10000
-ckpt = None
+trial      = '01'
+len_cap    = 2**7
+batch_size = 2**5
+step_eval  = 2**7
+step_save  = 2**12
+ckpt       = None
 
 
 from model import model
-from os.path import expanduser
+from os.path import expanduser, join
 from tqdm import tqdm
 from utils import batch
 import numpy as np
@@ -23,27 +23,30 @@ tgt_valid = np.load("trial/data/tgt_valid.npy")
 
 src, tgt = map(tf.to_int32, batch((src_train, tgt_train), batch_size= batch_size))
 m = model(src= src, tgt= tgt, len_cap= len_cap)
-
 src, tgt = batch((src_valid, tgt_valid), batch_size= batch_size)
 
-# wtr = tf.summary.FileWriter("trial/graph", tf.get_default_graph())
-wtr = tf.summary.FileWriter(expanduser("~/cache/tensorboard-logdir/explicharr/trial" + trial))
-svr = tf.train.Saver(max_to_keep= None)
+path = expanduser("~/cache/tensorboard-logdir/explicharr/trial{}".format(trial))
+wtr_train = tf.summary.FileWriter(join(path, 'train'))
+wtr_valid = tf.summary.FileWriter(join(path, 'valid'))
+# wtr = tf.summary.FileWriter(join(path, 'graph'))
+saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
 
 if ckpt:
-    svr.restore(sess, ckpt)
+    saver.restore(sess, ckpt)
 else:
     tf.global_variables_initializer().run()
 
-summ_up = tf.summary.scalar('loss_train', m.loss), m.step, m.up
-summ_ev = tf.summary.scalar('loss_valid', m.loss)
+summ_ev = tf.summary.scalar('loss', m.loss)
+summ_up = summ_ev, m.step, m.up
 
 while True:
     for _ in tqdm(range(step_save), ncols= 70):
         summ, step, _ = sess.run(summ_up)
         if not (step % step_eval):
-            wtr.add_summary(summ, step)
+            wtr_train.add_summary(summ, step)
             summ = sess.run(summ_ev, {m.src: src.eval(), m.tgt: tgt.eval()})
-            wtr.add_summary(summ, step)
-    svr.save(sess, "trial/model/m", step)
+            wtr_valid.add_summary(summ, step)
+    wtr_train.flush()
+    wtr_valid.flush()
+    saver.save(sess, "trial/model/m", step)
