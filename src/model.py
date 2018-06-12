@@ -10,12 +10,18 @@ def placeholder(x, dtype, shape):
         return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
+def normalize(x, axis= -1, eps= 1e-8, name= "layer_norm"):
+    with tf.variable_scope(name):
+        mean, var = tf.nn.moments(x, axis, keep_dims=True)
+        return (x - mean) / tf.sqrt(var + eps)
+
+
 def count(tensor, item, relation= tf.equal, axis= 0):
     return tf.to_int32(tf.reduce_sum(tf.to_float(relation(tensor, item)), axis))
 
 
-def sinusoid(n, t):
-    a = (1e-8 ** (np.arange(n // 2) / n)).reshape(-1, 1) @ np.arange(t).reshape(1, -1)
+def sinusoid(t, n):
+    a = (1e-4 ** ((2 / n) * np.arange(n // 2))).reshape(-1, 1) @ np.arange(t).reshape(1, -1)
     return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
 
 
@@ -64,8 +70,6 @@ def model(training= True
             dropout = lambda x: tf.layers.dropout(x, self.dropout, training= self.training)
     else:
         dropout = lambda x: x
-    norm = tf.contrib.layers.layer_norm
-    dense = tf.layers.dense
     attention = lambda v, q, **args: multihead_attention(
         value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     # trim `src` to the maximum valid index among the batch
@@ -79,7 +83,7 @@ def model(training= True
         len_tgt = tf.minimum(len_cap, count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal))
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # embedding with sinusoidal positional encoding
-    pos = tf.constant(sinusoid(dim, len_cap), tf.float32, name= 'sinusoid')
+    pos = tf.constant(sinusoid(len_cap, dim), tf.float32, name= 'sinusoid')
     with tf.variable_scope('source'):
         w = dropout(pos[:len_src] + tf.gather(tf.get_variable('emb', (dim_src, dim), tf.float32), src))
     with tf.variable_scope('target'):
@@ -89,22 +93,22 @@ def model(training= True
     with tf.variable_scope('encode'):
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
-                w = norm(w + dropout(attention(w, w)))
-                h = dense(w, dim_mid, activation, name= 'relu')
-                h = dense(h, dim) # why no activation ????
-                w = norm(w + dropout(h))
+                w = normalize(w + dropout(attention(w, w)))
+                h = tf.layers.dense(w, dim_mid, activation, name= 'relu')
+                h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
+                w = normalize(w + dropout(h))
     self.w, self.x = w, tgt
     with tf.variable_scope('decode'):
         with tf.variable_scope('mask'):
             mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense()
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
-                x = norm(x + dropout(attention(x, x, mask= mask, name= 'masked_attention')))
-                x = norm(x + dropout(attention(w, x)))
-                h = dense(x, dim_mid, activation, name= 'relu')
-                h = dense(h, dim) # why no activation ????
-                x = norm(x + dropout(h))
-    logit = self.y = dense(x, dim_tgt, name= 'logit')
+                x = normalize(x + dropout(attention(x, x, mask= mask, name= 'masked_attention')))
+                x = normalize(x + dropout(attention(w, x)))
+                h = tf.layers.dense(x, dim_mid, activation, name= 'relu')
+                h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
+                x = normalize(x + dropout(h))
+    logit = self.y = tf.layers.dense(x, dim_tgt, name= 'logit')
     self.z = self.y[:,-1]
     # done
     with tf.variable_scope('eval'):
