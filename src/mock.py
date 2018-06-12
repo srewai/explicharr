@@ -3,7 +3,7 @@
 from os.path import join
 
 
-def mock(src, tgt, src2, tgt2, len_cap= 512):
+def mock(src, tgt, src2, tgt2, len_cap= 512, proc= str.lower):
     keep = []
     with open(src) as fs, open(tgt) as ft:
         for st in zip(fs, ft):
@@ -13,8 +13,8 @@ def mock(src, tgt, src2, tgt2, len_cap= 512):
     keep.sort()
     with open(src2, 'w') as fs, open(tgt2, 'w') as ft:
         for _, _, _, (s, t) in keep:
-            print(s, end= "", file= fs)
-            print(t, end= "", file= ft)
+            print(proc(s), end= "", file= fs)
+            print(proc(t), end= "", file= ft)
 
 
 len_cap = 2**8
