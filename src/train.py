@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 
-trial      = '01'
-len_cap    = 2**6
-batch_size = 2**6
+trial      = '02'
+len_cap    = 2**8
+batch_size = 2**5
 step_eval  = 2**7
 step_save  = 2**12
 ckpt       = None

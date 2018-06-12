@@ -17,7 +17,7 @@ def mock(src, tgt, src2, tgt2, len_cap= 512):
             print(t, end= "", file= ft)
 
 
-len_cap = 64
+len_cap = 2**8
 
 
 path, path2 = "../data", "trial/data"

@@ -9,4 +9,4 @@ python3 mock.py
 
 python3 data.py
 
-python3 train.py
+# python3 train.py
