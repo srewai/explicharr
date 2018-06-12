@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-trial      = '00'
+trial      = '01'
 len_cap    = 2**6
 batch_size = 2**6
 step_eval  = 2**7
@@ -69,15 +69,15 @@ if ckpt:
 else:
     tf.global_variables_initializer().run()
 
-step_up = m.step, m.up
-summ_ev = tf.summary.merge((
+summ = tf.summary.merge((
     tf.summary.scalar('step_loss', m.loss)
     , tf.summary.scalar('step_acc', m.acc)))
 
 while True:
     for _ in tqdm(range(step_save), ncols= 70):
-        step, _ = sess.run(step_up)
+        sess.run(m.up)
+        step = sess.run(m.step)
         if not (step % step_eval):
-            wtr.add_summary(sess.run(summ_ev), step)
+            wtr.add_summary(sess.run(summ), step)
     saver.save(sess, "trial/model/m", step)
     write_trans("trial/pred/m{}".format(step))

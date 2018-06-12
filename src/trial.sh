@@ -3,6 +3,7 @@
 # mkdir trial
 # mkdir trial/data
 # mkdir trial/model
+# mkdir trial/pred
 # python3 mock.py
 # python3 data.py
 

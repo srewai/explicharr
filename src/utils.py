@@ -9,8 +9,10 @@ def jagged_array(x, fill, shape, dtype):
     import numpy as np
     a = np.full(shape= shape, dtype= dtype, fill_value= fill)
     i, *shape = shape
-    x = np.stack([jagged_array(x= x, fill= fill, shape= shape, dtype= dtype) for x in x]) \
-                                  if shape else np.fromiter(x, dtype= dtype)
+    if shape:
+        x = np.stack([jagged_array(x, fill, shape, dtype) for x in x])
+    else:
+        x = np.fromiter(x, dtype= dtype)
     i = min(i, len(x))
     a[:i] = x[:i]
     return a
