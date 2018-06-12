@@ -19,6 +19,7 @@ def jagged_array(x, fill, shape, dtype):
 
 
 def permute(n, seed= 0):
+    """returns a random permutation of the first `n` natural numbers."""
     import numpy as np
     np.random.seed(0)
     i = np.arange(n)
@@ -27,6 +28,7 @@ def permute(n, seed= 0):
 
 
 def batch(data, batch_size, shuffle= 1e4, repeat= True, name= "batch"):
+    """returns a tensorflow dataset iterator from `data`."""
     import tensorflow as tf
     with tf.variable_scope(name):
         ds = tf.data.Dataset.from_tensor_slices(data)
@@ -54,10 +56,18 @@ def chartab(corpus, top= 256, special= "\xa0\n "):
 
 
 def encode(index, sent):
+    """encodes `sent : seq str` according to `index : PointedIndex`."""
     return list(map(index, " {}\n".format(" ".join(sent))))
 
 
 def decode(index, idxs, end= "\n", sep= ""):
+    """-> str
+
+    decodes `idxs : seq int` according to `index : PointedIndex`.
+
+    stops at `end` and joins the results with `sep`.
+
+    """
     end = index(end)
     tgt = []
     for idx in idxs:

@@ -2,6 +2,7 @@
 
 
 def bleu(gold, pred):
+    """-> float in [0, 1]; gold, pred : seq (sent : seq (word : str))"""
     from nltk.translate.bleu_score import corpus_bleu
     return corpus_bleu([[g] for g in gold], pred)
 

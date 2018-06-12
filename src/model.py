@@ -3,33 +3,49 @@ import numpy as np
 import tensorflow as tf
 
 
-def placeholder(x, dtype, shape):
+def placeholder(dtype, shape, x= None):
+    """returns a placeholder with `dtype` and `shape`.
+
+    if tensor `x` is given, converts and uses it as default.
+
+    """
+
     if x is None:
         return tf.placeholder(dtype, shape)
     else:
         return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
-def normalize(x, axis= -1, eps= 1e-8, name= "layer_norm"):
+def normalize(x, axis= -1, eps= 1e-8, name= "normalize"):
+    """returns a tensor from `x` scaled and centered across `axis`."""
     with tf.variable_scope(name):
         mean, var = tf.nn.moments(x, axis, keep_dims=True)
         return (x - mean) / tf.sqrt(var + eps)
 
 
-def count(tensor, item, relation= tf.equal, axis= 0):
-    return tf.to_int32(tf.reduce_sum(tf.to_float(relation(tensor, item)), axis))
+def count(x, item, relation= tf.equal, axis= 0):
+    """counts `item` in tensor `x` across `axis` by `relation`."""
+    return tf.to_int32(tf.reduce_sum(tf.to_float(relation(x, item)), axis))
 
 
 def sinusoid(t, n):
+    """returns a 2d array with `t` time steps and `n` sinusoids."""
     a = (1e-4 ** ((2 / n) * np.arange(n // 2))).reshape(-1, 1) @ np.arange(t).reshape(1, -1)
     return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
 
 
 def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'attention'):
-    # value : b,s,k
-    # query : b,t,q
-    # mask  :   t,s
-    # ->    : b,t,dh
+    """computes multi-head attention from `value` and `query` tensors.
+
+    with batch size `b`, time steps `s, t`, dimensions `k, q`
+
+    - value : b,s,k
+    - query : b,t,q
+
+    the returned tensor has shape `b, t, dim * num_head`, and `mask`
+    when supplied must have shape compatible to `num_head, b, t, s`.
+
+    """
     dense = lambda x, d, name: tf.layers.dense(x, d, use_bias= False, name= name)
     split = lambda x: tf.split(x, num_head, -1)
     with tf.variable_scope(name):
@@ -74,12 +90,12 @@ def model(training= True
         value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     # trim `src` to the maximum valid index among the batch
     with tf.variable_scope('src'):
-        src = self.src = placeholder(src, tf.int32, (None, None))
+        src = self.src = placeholder(tf.int32, (None, None), src)
         len_src = tf.minimum(len_cap, count(count(src, end), tf.shape(src)[0], tf.not_equal) + 1)
         src = src[:,:len_src]
     # same for `tgt`, but with one less index
     with tf.variable_scope('tgt'):
-        tgt = self.tgt = placeholder(tgt, tf.int32, (None, None))
+        tgt = self.tgt = placeholder(tf.int32, (None, None), tgt)
         len_tgt = tf.minimum(len_cap, count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal))
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # embedding with sinusoidal positional encoding
