@@ -3,7 +3,7 @@
 
 trial      = '01'
 len_cap    = 2**7
-batch_size = 2**5
+batch_size = 2**6
 step_eval  = 2**7
 step_save  = 2**12
 ckpt       = None
@@ -12,14 +12,20 @@ ckpt       = None
 from model import model
 from os.path import expanduser, join
 from tqdm import tqdm
-from utils import batch
+from utils import permute, batch
 import numpy as np
 import tensorflow as tf
+tf.set_random_seed(0)
 
 src_train = np.load("trial/data/src_train.npy")
 tgt_train = np.load("trial/data/tgt_train.npy")
 src_valid = np.load("trial/data/src_valid.npy")
 tgt_valid = np.load("trial/data/tgt_valid.npy")
+
+i = permute(len(src_train))
+src_train = src_train[i]
+tgt_train = tgt_train[i]
+del i
 
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
 m = model(src= src, tgt= tgt, len_cap= len_cap)

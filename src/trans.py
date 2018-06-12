@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 
-len_cap = 128
-batch_size = 64
+len_cap    = 2**7
+batch_size = 2**6
 ckpt = None
 
 

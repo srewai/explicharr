@@ -16,6 +16,14 @@ def jagged_array(x, fill, shape, dtype):
     return a
 
 
+def permute(n, seed= 0):
+    import numpy as np
+    np.random.seed(0)
+    i = np.arange(n)
+    np.random.shuffle(i)
+    return i
+
+
 def batch(data, batch_size, shuffle= 1e4, repeat= True, name= "batch"):
     import tensorflow as tf
     with tf.variable_scope(name):
