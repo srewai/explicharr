@@ -18,8 +18,8 @@ import tensorflow as tf
 tf.set_random_seed(0)
 
 
-src_train = np.load("trial/data/src_train.npy")
-tgt_train = np.load("trial/data/tgt_train.npy")
+src_train = np.load("trial/data/train_src.npy")
+tgt_train = np.load("trial/data/train_tgt.npy")
 
 i = permute(len(src_train))
 src_train = src_train[i]
@@ -34,15 +34,15 @@ m = model(src= src, tgt= tgt, len_cap= len_cap)
 ########################
 
 m.p = m.pred[:,-1]
-src = np.load("trial/data/src_valid.npy")
+src = np.load("trial/data/valid_src.npy")
 rng = range(0, len(src) + batch_size, batch_size)
-idx = PointedIndex(np.load("trial/data/idx.npy").item()['idx2tgt'])
+idx = PointedIndex(np.load("trial/data/index.npy").item()['idx2tgt'])
 
 def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
     with open(path, 'w') as f:
         for i, j in zip(rng, rng[1:]):
             for p in trans(m, src[i:j])[:,1:]:
-                print(decode(idx, p, sep= "/"), file= f)
+                print(decode(idx, p), file= f)
 
 def trans(m, src, begin= 2, len_cap= len_cap):
     w = m.w.eval({m.src: src})
