@@ -114,8 +114,7 @@ def model(training= True
     with tf.variable_scope('eval'):
         self.prob = tf.nn.softmax(logit)
         pred = self.pred = tf.to_int32(tf.argmax(logit, -1))
-        mask = tf.to_float(tf.not_equal(gold, end))
-        self.acc = tf.reduce_sum(tf.to_float(tf.equal(pred, gold)) * mask) / tf.reduce_sum(mask)
+        self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
     if training:
         with tf.variable_scope('loss'):
             self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
@@ -130,15 +129,3 @@ def model(training= True
         self.up = tf.train.AdamOptimizer(
             self.lr, beta1= 0.9, beta2= 0.98, epsilon= 1e-9).minimize(self.loss, self.step)
     return self
-
-
-def trans(m, src, begin= 2):
-    # src : np.array
-    w = m.w.eval({m.src: src})
-    x = np.full((len(src), m.len_cap), m.end, dtype= np.int32)
-    x[:,0] = begin
-    for i in range(1, m.len_cap):
-        p = m.p.eval({m.w: w, m.x: x[:,:i]})
-        if np.alltrue(p == m.end): break
-        x[:,i] = p
-    return x
