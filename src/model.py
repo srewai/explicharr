@@ -55,7 +55,7 @@ def model(training= True
     # tgt history, index x : ?, t
     # current tgt, logit z : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
-    self = Record()
+    self = Record(end= end, len_cap= len_cap)
     # building blocks
     if training and dropout is not None:
         with tf.variable_scope('training/'):
@@ -126,3 +126,15 @@ def model(training= True
         self.up = tf.train.AdamOptimizer(
             self.lr, beta1= 0.9, beta2= 0.98, epsilon= 1e-9).minimize(self.loss, self.step)
     return self
+
+
+def trans(m, src, begin= 2):
+    # src : np.array
+    w = m.w.eval({m.src: src})
+    x = np.full((len(src), m.len_cap), m.end, dtype= np.int32)
+    x[:,0] = begin
+    for i in range(1, m.len_cap):
+        p = m.p.eval({m.w: w, m.x: x[:,:i]})
+        if np.alltrue(p == m.end): break
+        x[:,i] = p
+    return x

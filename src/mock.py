@@ -26,7 +26,7 @@ def mock(pathi, patho, src, tgt, rst= "rest", len_cap= 512):
             print(t, end= "", file= fr)
 
 
-len_cap = 128
+len_cap = 64
 
 
 mock(pathi= "../data", patho= "../mock", src= "train.nen", tgt= "train.sen", rst= "train", len_cap= len_cap)
