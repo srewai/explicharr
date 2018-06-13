@@ -45,11 +45,11 @@ def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
                 print(decode(idx, p), file= f)
 
 def trans(m, src, begin= 2, len_cap= len_cap):
-    w = m.w.eval({m.src: src})
+    w = m.w.eval({m.src: src, m.training: False})
     x = np.full((len(src), len_cap), m.end, dtype= np.int32)
     x[:,0] = begin
     for i in range(1, len_cap):
-        p = m.p.eval({m.w: w, m.x: x[:,:i]})
+        p = m.p.eval({m.w: w, m.x: x[:,:i], m.training: False})
         if np.alltrue(p == m.end): break
         x[:,i] = p
     return x
@@ -78,6 +78,6 @@ while True:
         sess.run(m.up)
         step = sess.run(m.step)
         if not (step % step_eval):
-            wtr.add_summary(sess.run(summ), step)
+            wtr.add_summary(sess.run(summ, {m.training: False}), step)
     saver.save(sess, "trial/model/m", step)
     write_trans("trial/pred/m{}".format(step))

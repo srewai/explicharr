@@ -20,7 +20,7 @@ def normalize(x, axis= -1, eps= 1e-8, name= "normalize"):
     """returns a tensor from `x` scaled and centered across `axis`."""
     with tf.variable_scope(name):
         mean, var = tf.nn.moments(x, axis, keep_dims=True)
-        return (x - mean) / tf.sqrt(var + eps)
+        return (x - mean) * tf.rsqrt(var + eps)
 
 
 def count(x, item, relation= tf.equal, axis= 0):
