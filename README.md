@@ -20,5 +20,6 @@ automatic text simplification with deep learning approach
 
 # details
 
+- [input output embedding sharing](https://arxiv.org/abs/1608.05859)
 - [layer normalization](https://arxiv.org/abs/1607.06450)
 - [label smoothing](https://arxiv.org/abs/1512.00567)

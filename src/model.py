@@ -16,7 +16,7 @@ def placeholder(dtype, shape, x= None):
         return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
-def normalize(x, axis= -1, eps= 1e-8, name= "normalize"):
+def normalize(x, axis= -1, eps= 1e-16, name= "normalize"):
     """returns a tensor from `x` scaled and centered across `axis`."""
     with tf.variable_scope(name):
         mean, var = tf.nn.moments(x, axis, keep_dims=True)
@@ -34,7 +34,19 @@ def sinusoid(t, n):
     return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
 
 
-def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'attention'):
+def eye_smooth(n, smooth= 0.1):
+    """returns a smoothed identity matrix."""
+    return np.eye(n) * (1 - smooth) + (smooth / n)
+
+
+def softmax(x, axis= -1, eps= 1e-16, name= 'softmax'):
+    """`tf.nn.softmax` does weird reshaping and is about 25% slower."""
+    with tf.variable_scope(name):
+        x = tf.exp(x)
+        return x / (tf.reduce_sum(x, axis= axis, keepdims= True) + eps)
+
+
+def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'attention'):
     """computes multi-head attention from `value` and `query` tensors.
 
     with batch size `b`, time steps `s, t`, dimensions `k, q`
@@ -42,7 +54,7 @@ def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'a
     - value : b,s,k
     - query : b,t,q
 
-    the returned tensor has shape `b, t, dim * num_head`, and `mask`
+    the returned tensor has shape `b, t, dim * num_head`, and `bias`
     when supplied must have shape compatible to `num_head, b, t, s`.
 
     """
@@ -53,11 +65,11 @@ def multihead_attention(value, query, dim= 64, num_head= 8, mask= None, name= 'a
         k = tf.stack(split(dense(value, dim * num_head, 'k'))) # h,b,s,d
         q = tf.stack(split(dense(query, dim * num_head, 'q'))) # h,b,t,d
         q = (dim ** -0.5) * tf.matmul(q, k, transpose_b= True) # h,b,t,s
-        if mask is not None: q += tf.log(mask)
-        return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
+        if bias is not None: q += bias
+        return tf.concat(tf.unstack(tf.matmul(softmax(q), v)), -1)
 
 
-def model(training= True
+def model(training= True, share_embedding= True
           , end= 1,    len_cap= 512
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
@@ -83,6 +95,7 @@ def model(training= True
         with tf.variable_scope('training/'):
             self.training = tf.placeholder_with_default(True, (), 'training')
             self.dropout = tf.placeholder_with_default(dropout, (), 'dropout')
+            # todo make only one dropout mask
             dropout = lambda x: tf.layers.dropout(x, self.dropout, training= self.training)
     else:
         dropout = lambda x: x
@@ -101,10 +114,12 @@ def model(training= True
     # embedding with sinusoidal positional encoding
     pos = tf.constant(sinusoid(len_cap, dim), tf.float32, name= 'sinusoid')
     with tf.variable_scope('source'):
-        w = dropout(pos[:len_src] + tf.gather(tf.get_variable('emb', (dim_src, dim), tf.float32), src))
+        self.emb_src = tf.get_variable('emb', (dim_src, dim), tf.float32)
+        w = dropout(pos[:len_src] + tf.gather(normalize(self.emb_src), src))
     with tf.variable_scope('target'):
         len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
-        x = dropout(pos[:len_tgt] + tf.gather(tf.get_variable('emb', (dim_tgt, dim), tf.float32), tgt))
+        self.emb_tgt = tf.get_variable('emb', (dim_tgt, dim), tf.float32)
+        x = dropout(pos[:len_tgt] + tf.gather(normalize(self.emb_tgt), tgt))
     # construction
     with tf.variable_scope('encode'):
         for i in range(num_layer):
@@ -116,26 +131,27 @@ def model(training= True
     self.w, self.x = w, tgt
     with tf.variable_scope('decode'):
         with tf.variable_scope('mask'):
-            mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense()
+            mask = tf.log(tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense())
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
-                x = normalize(x + dropout(attention(x, x, mask= mask, name= 'masked_attention')))
+                x = normalize(x + dropout(attention(x, x, bias= mask, name= 'masked_attention')))
                 x = normalize(x + dropout(attention(w, x)))
                 h = tf.layers.dense(x, dim_mid, activation, name= 'relu')
                 h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
                 x = normalize(x + dropout(h))
-    logit = self.y = tf.layers.dense(x, dim_tgt, name= 'logit')
-    self.z = self.y[:,-1]
+    logit = self.y = tf.matmul(x, self.emb_tgt, transpose_b= True) if share_embedding \
+        else tf.layers.dense(x, dim_tgt, name= 'logit')
     # done
     with tf.variable_scope('eval'):
-        self.prob = tf.nn.softmax(logit)
+        self.prob = softmax(logit)
         pred = self.pred = tf.to_int32(tf.argmax(logit, -1))
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
     if training:
         with tf.variable_scope('loss'):
             self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
-                labels= tf.gather(tf.eye(dim_tgt) * (1 - smooth) + (smooth / dim_tgt), gold)
-                , logits= logit))
+                logits= logit, labels= tf.gather(
+                    tf.constant(eye_smooth(dim_tgt, smooth), tf.float32, name= 'smooth')
+                    , gold)))
         with tf.variable_scope('training/'):
             self.step = tf.train.get_or_create_global_step()
             step = tf.to_float(self.step + 1)
