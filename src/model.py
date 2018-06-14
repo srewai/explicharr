@@ -39,13 +39,6 @@ def eye_smooth(n, smooth= 0.1):
     return np.eye(n) * (1 - smooth) + (smooth / n)
 
 
-def softmax(x, axis= -1, eps= 1e-16, name= 'softmax'):
-    """`tf.nn.softmax` does weird reshaping and is about 25% slower."""
-    with tf.variable_scope(name):
-        x = tf.exp(x)
-        return x / (tf.reduce_sum(x, axis= axis, keepdims= True) + eps)
-
-
 def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'attention'):
     """computes multi-head attention from `value` and `query` tensors.
 
@@ -66,7 +59,7 @@ def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'a
         q = tf.stack(split(dense(query, dim * num_head, 'q'))) # h,b,t,d
         q = (dim ** -0.5) * tf.matmul(q, k, transpose_b= True) # h,b,t,s
         if bias is not None: q += bias
-        return tf.concat(tf.unstack(tf.matmul(softmax(q), v)), -1)
+        return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
 def model(training= True, share_embedding= True
@@ -74,7 +67,7 @@ def model(training= True, share_embedding= True
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
           , dim= 512,  dim_mid= 2048
-          , num_layer= 6, num_head= 8
+          , num_head= 8, num_layer= 6
           , activation= tf.nn.relu
           , dropout= 0.1
           , smooth= 0.1
@@ -149,7 +142,7 @@ def model(training= True, share_embedding= True
     self.y = logit[:,-1]
     # done
     with tf.variable_scope('eval'):
-        self.prob = softmax(logit)
+        self.prob = tf.nn.log_softmax(logit)
         pred = self.pred = tf.to_int32(tf.argmax(logit, -1))
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
     if training:
