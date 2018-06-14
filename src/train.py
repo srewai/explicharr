@@ -3,7 +3,7 @@
 
 trial      = '02'
 len_cap    = 2**8
-batch_size = 2**5
+batch_size = 2**6
 step_eval  = 2**7
 step_save  = 2**12
 ckpt       = None
@@ -27,7 +27,9 @@ tgt_train = tgt_train[i]
 del i
 
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(src= src, tgt= tgt, len_cap= len_cap)
+m = model(len_cap= len_cap, src= src, tgt= tgt
+          , dim= 256, dim_mid= 512
+          , num_head= 4, num_layer= 2)
 
 ########################
 # autoregressive model #
