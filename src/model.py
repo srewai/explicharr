@@ -70,7 +70,7 @@ def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'a
 
 
 def model(training= True, share_embedding= True
-          , end= 1,    len_cap= 512
+          , end= 1,    len_cap= 256
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
           , dim= 512,  dim_mid= 2048
@@ -84,10 +84,10 @@ def model(training= True, share_embedding= True
     # both should be padded at the end (with `end`)
     # tgt (or both) should be padded at the beginning
     #
-    # as an autoregressive model, this is a function : w, x -> z
+    # as an autoregressive model, this is a function : w, x -> y
     # encoded src, dense w : ?, s, dim
     # tgt history, index x : ?, t
-    # current tgt, logit z : ?, dim_tgt
+    # current tgt, logit y : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
     self = Record(end= end, len_cap= len_cap)
     # building blocks
@@ -111,17 +111,14 @@ def model(training= True, share_embedding= True
         tgt = self.tgt = placeholder(tf.int32, (None, None), tgt)
         len_tgt = tf.minimum(len_cap, count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal))
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
-    # embedding with sinusoidal positional encoding
-    pos = tf.constant(sinusoid(len_cap, dim), tf.float32, name= 'sinusoid')
-    with tf.variable_scope('source'):
-        self.emb_src = tf.get_variable('emb', (dim_src, dim), tf.float32)
-        w = dropout(pos[:len_src] + tf.gather(normalize(self.emb_src), src))
-    with tf.variable_scope('target'):
-        len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
-        self.emb_tgt = tf.get_variable('emb', (dim_tgt, dim), tf.float32)
-        x = dropout(pos[:len_tgt] + tf.gather(normalize(self.emb_tgt), tgt))
+    # source, target, and position embeddings
+    emb_src = tf.get_variable('emb_src', (dim_src, dim), tf.float32)
+    emb_tgt = tf.get_variable('emb_tgt', (dim_tgt, dim), tf.float32)
+    emb_pos = tf.constant(sinusoid(len_cap, dim), tf.float32, name= 'emb_pos')
     # construction
     with tf.variable_scope('encode'):
+        with tf.variable_scope('embed'):
+            w = dropout(emb_pos[:len_src] + tf.gather(normalize(emb_src), src))
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
                 w = normalize(w + dropout(attention(w, w)))
@@ -130,6 +127,9 @@ def model(training= True, share_embedding= True
                 w = normalize(w + dropout(h))
     self.w, self.x = w, tgt
     with tf.variable_scope('decode'):
+        with tf.variable_scope('embed'):
+            len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
+            x = dropout(emb_pos[:len_tgt] + tf.gather(normalize(emb_tgt), tgt))
         with tf.variable_scope('mask'):
             mask = tf.log(tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense())
         for i in range(num_layer):
@@ -139,8 +139,14 @@ def model(training= True, share_embedding= True
                 h = tf.layers.dense(x, dim_mid, activation, name= 'relu')
                 h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
                 x = normalize(x + dropout(h))
-    logit = self.y = tf.matmul(x, self.emb_tgt, transpose_b= True) if share_embedding \
-        else tf.layers.dense(x, dim_tgt, name= 'logit')
+    if share_embedding:
+        with tf.variable_scope('logit'):
+            logit = tf.reshape(tf.matmul(
+                tf.reshape(x, (-1, dim)), emb_tgt, transpose_b= True)
+                               , (-1, len_tgt, dim_tgt))
+    else:
+        logit = tf.layers.dense(x, dim_tgt, name= 'logit')
+    self.y = logit[:,-1]
     # done
     with tf.variable_scope('eval'):
         self.prob = softmax(logit)
@@ -148,10 +154,14 @@ def model(training= True, share_embedding= True
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
     if training:
         with tf.variable_scope('loss'):
-            self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
-                logits= logit, labels= tf.gather(
-                    tf.constant(eye_smooth(dim_tgt, smooth), tf.float32, name= 'smooth')
-                    , gold)))
+            if smooth:
+                loss = tf.nn.softmax_cross_entropy_with_logits_v2(
+                    logits= logit, labels= tf.gather(
+                        tf.constant(eye_smooth(dim_tgt, smooth), tf.float32, name= 'smooth')
+                        , gold))
+            else:
+                loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits= logit, labels= gold)
+            self.loss = tf.reduce_mean(loss)
         with tf.variable_scope('training/'):
             self.step = tf.train.get_or_create_global_step()
             step = tf.to_float(self.step + 1)
