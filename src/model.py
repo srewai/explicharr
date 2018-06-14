@@ -34,11 +34,6 @@ def sinusoid(t, n):
     return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
 
 
-def eye_smooth(n, smooth= 0.1):
-    """returns a smoothed identity matrix."""
-    return np.eye(n) * (1 - smooth) + (smooth / n)
-
-
 def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'attention'):
     """computes multi-head attention from `value` and `query` tensors.
 
@@ -147,14 +142,10 @@ def model(training= True, share_embedding= True
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
     if training:
         with tf.variable_scope('loss'):
-            if smooth:
-                loss = tf.nn.softmax_cross_entropy_with_logits_v2(
-                    logits= logit, labels= tf.gather(
-                        tf.constant(eye_smooth(dim_tgt, smooth), tf.float32, name= 'smooth')
-                        , gold))
-            else:
-                loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits= logit, labels= gold)
-            self.loss = tf.reduce_mean(loss)
+             self.loss = tf.reduce_mean(
+                 tf.nn.softmax_cross_entropy_with_logits_v2(
+                     labels= tf.gather(tf.eye(dim_tgt) * (1 - smooth) + (smooth / dim_tgt), gold)
+                     , logits= logit))
         with tf.variable_scope('training/'):
             self.step = tf.train.get_or_create_global_step()
             step = tf.to_float(self.step + 1)
