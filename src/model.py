@@ -28,12 +28,15 @@ def count(x, item, relation= tf.equal, axis= 0):
     return tf.to_int32(tf.reduce_sum(tf.to_float(relation(x, item)), axis))
 
 
-def sinusoid(time, dim, freq= 1e-4, name= 'sinusoid'):
+def sinusoid(time, dim, freq= 1e-4, name= 'sinusoid', array= False):
     """returns a rank-2 tensor of shape `time, dim`, where each row
     corresponds to a time step and each column a sinusoid, with
     frequencies in a geometric progression from 1 to `freq`.
 
     """
+    if array:
+        a = (freq ** ((2 / dim) * np.arange(dim // 2))).reshape(-1, 1) @ np.arange(time).reshape(1, -1)
+        return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(dim, time).T
     with tf.variable_scope(name):
         a = tf.reshape(
             freq ** ((2 / dim) * tf.range(dim // 2, dtype= tf.float32))
@@ -67,7 +70,7 @@ def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'a
         return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
-def model(logit_share_embedding= True
+def model(logit_share_embedding= True, len_cap= None
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
           , dim= 512,  dim_mid= 2048
@@ -111,11 +114,13 @@ def model(logit_share_embedding= True
     attention = lambda v, q, **args: multihead_attention(
         value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     init = tf.orthogonal_initializer()
+    if len_cap: emb_pos = tf.constant(sinusoid(len_cap, dim, array= True), tf.float32, name= 'sinusoid')
     # construction
     with tf.variable_scope('encode'):
         with tf.variable_scope('embed'):
+            pos = emb_pos[:len_src] if len_cap else sinusoid(len_src, dim)
             emb = tf.get_variable('emb', (dim_src, dim), tf.float32, init)
-            w = dropout(tf.gather(normalize(emb), src) + sinusoid(len_src, dim))
+            w = dropout(pos + tf.gather(normalize(emb), src))
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
                 w = normalize(w + dropout(attention(w, w)))
@@ -126,8 +131,9 @@ def model(logit_share_embedding= True
     with tf.variable_scope('decode'):
         with tf.variable_scope('embed'):
             len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
+            pos = emb_pos[:len_tgt] if len_cap else sinusoid(len_tgt, dim)
             emb = tf.get_variable('emb', (dim_tgt, dim), tf.float32, init)
-            x = dropout(tf.gather(normalize(emb), tgt) + sinusoid(len_tgt, dim))
+            x = dropout(pos + tf.gather(normalize(emb), tgt))
         with tf.variable_scope('mask'):
             mask = tf.log(tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense())
         for i in range(num_layer):

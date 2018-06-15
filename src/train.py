@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 
-trial      = '02'
+trial      = '05'
+len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
+step_meta  = 2**9
 step_save  = 2**12
 ckpt       = None
 
@@ -26,9 +28,11 @@ tgt_train = tgt_train[i]
 del i
 
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(src= src, tgt= tgt
+m = model(len_cap= len_cap
           , dim= 256, dim_mid= 512
-          , num_head= 4, num_layer= 2)
+          , num_head= 4, num_layer= 2
+          , dropout= 0.25
+          , src= src, tgt= tgt)
 
 ########################
 # autoregressive model #
@@ -60,25 +64,32 @@ def trans(m, src, begin= 2, len_cap= 256):
 ############
 
 path = expanduser("~/cache/tensorboard-logdir/explicharr")
-wtr = tf.summary.FileWriter(join(path, "trial{}".format(trial)))
-# wtr = tf.summary.FileWriter(join(path, "graph"), tf.get_default_graph())
 saver = tf.train.Saver()
 sess = tf.InteractiveSession()
+wtr = tf.summary.FileWriter(join(path, "trial{}".format(trial)), sess.graph)
 
 if ckpt:
     saver.restore(sess, ckpt)
 else:
     tf.global_variables_initializer().run()
 
+opt = tf.RunOptions(trace_level= tf.RunOptions.FULL_TRACE)
 summ = tf.summary.merge((
     tf.summary.scalar('step_loss', m.loss)
     , tf.summary.scalar('step_acc', m.acc)))
+feed_eval = {m.training: False}
 
+step = sess.run(m.step)
 while True:
     for _ in tqdm(range(step_save), ncols= 70):
-        sess.run(m.up)
+        if not (step % step_meta):
+            meta = tf.RunMetadata()
+            sess.run(m.up, options= opt, run_metadata= meta)
+            wtr.add_run_metadata(meta, str(step))
+        else:
+            sess.run(m.up)
         step = sess.run(m.step)
         if not (step % step_eval):
-            wtr.add_summary(sess.run(summ, {m.training: False}), step)
+            wtr.add_summary(sess.run(summ, feed_eval), step)
     saver.save(sess, "trial/model/m", step)
     write_trans("trial/pred/m{}".format(step))
