@@ -39,6 +39,15 @@ def batch(data, batch_size, shuffle= 1e4, repeat= True, name= "batch"):
                  .get_next()
 
 
+def profile(path, sess, run, feed_dict= None, prerun= 3, tag= "step"):
+    import tensorflow as tf
+    for _ in range(prerun): sess.run(run, feed_dict)
+    meta = tf.RunMetadata()
+    sess.run(run, feed_dict, tf.RunOptions(trace_level= tf.RunOptions.FULL_TRACE), meta)
+    with tf.summary.FileWriter(path, sess.graph) as wtr:
+        wtr.add_run_metadata(meta, tag)
+
+
 def chartab(corpus, top= 256, special= "\xa0\n "):
     """returns the `top` most frequent characters in `corpus`, and ensures
     that the `special` characters are included with the highest ranks.

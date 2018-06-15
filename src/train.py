@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 
-trial      = '05'
+trial = '00'
+param = dict(dim= 256, dim_mid= 512, num_head= 4, num_layer= 2, dropout= 0.25)
 len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
@@ -18,6 +19,7 @@ import tensorflow as tf
 tf.set_random_seed(0)
 
 
+path = expanduser("~/cache/tensorboard-logdir/explicharr")
 src_train = np.load("trial/data/train_src.npy")
 tgt_train = np.load("trial/data/train_tgt.npy")
 
@@ -26,12 +28,14 @@ src_train = src_train[i]
 tgt_train = tgt_train[i]
 del i
 
+# from utils import profile
+# m = model(**param)
+# with tf.Session() as sess:
+#     tf.global_variables_initializer().run()
+#     profile(join(path, "graph"), sess, m.up, {m.src: src_train[:batch_size], m.tgt: tgt_train[:batch_size]})
+
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(len_cap= len_cap
-          , dim= 256, dim_mid= 512
-          , num_head= 4, num_layer= 2
-          , dropout= 0.25
-          , src= src, tgt= tgt)
+m = model(src= src, tgt= tgt, len_cap= len_cap, **param)
 
 ########################
 # autoregressive model #
@@ -62,7 +66,6 @@ def trans(m, src, begin= 2, len_cap= 256):
 # training #
 ############
 
-path = expanduser("~/cache/tensorboard-logdir/explicharr")
 saver = tf.train.Saver()
 sess = tf.InteractiveSession()
 wtr = tf.summary.FileWriter(join(path, "trial{}".format(trial)))
@@ -71,12 +74,6 @@ if ckpt:
     saver.restore(sess, ckpt)
 else:
     tf.global_variables_initializer().run()
-    wtr.add_graph(sess.graph)
-    for _ in range(3): sess.run(m.up)
-    meta = tf.RunMetadata()
-    sess.run(m.up, run_metadata= meta, options= tf.RunOptions(trace_level= tf.RunOptions.FULL_TRACE))
-    wtr.add_run_metadata(meta, "step")
-    del meta
 
 summ = tf.summary.merge((
     tf.summary.scalar('step_loss', m.loss)
