@@ -49,11 +49,11 @@ def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
                 print(decode(idx, p), file= f)
 
 def trans(m, src, begin= 2, len_cap= 256):
-    w = m.w.eval({m.src: src, m.training: False})
+    w = m.w.eval({m.src: src, m.dropout: 0})
     x = np.full((len(src), len_cap), m.end, dtype= np.int32)
     x[:,0] = begin
     for i in range(1, len_cap):
-        p = m.p.eval({m.w: w, m.x: x[:,:i], m.training: False})
+        p = m.p.eval({m.w: w, m.x: x[:,:i], m.dropout: 0})
         if np.alltrue(p == m.end): break
         x[:,i] = p
     return x
@@ -81,7 +81,7 @@ else:
 summ = tf.summary.merge((
     tf.summary.scalar('step_loss', m.loss)
     , tf.summary.scalar('step_acc', m.acc)))
-feed_eval = {m.training: False}
+feed_eval = {m.dropout: 0}
 
 while True:
     for _ in tqdm(range(step_save), ncols= 70):

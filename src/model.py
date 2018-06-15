@@ -104,17 +104,17 @@ def model(logit_share_embedding= True, len_cap= None
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # building blocks
     if training:
-        with tf.variable_scope('training/'):
-            self.training = tf.placeholder_with_default(training, (), 'training')
+        with tf.variable_scope('train/'):
             self.dropout = tf.placeholder_with_default(dropout, (), 'dropout')
-            dropout = lambda x: tf.layers.dropout(
-                x, self.dropout, (tf.shape(x)[0], 1, dim), training= self.training)
+            def dropout(x, keep = 1.0 - self.dropout):
+                with tf.variable_scope('dropout'):
+                    return tf.nn.dropout(x, keep, (tf.shape(x)[0], 1, dim))
     else:
         dropout = lambda x: x
     attention = lambda v, q, **args: multihead_attention(
         value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
-    init = tf.orthogonal_initializer()
     if len_cap: emb_pos = tf.constant(sinusoid(len_cap, dim, array= True), tf.float32, name= 'sinusoid')
+    init = tf.orthogonal_initializer()
     # construction
     with tf.variable_scope('encode'):
         with tf.variable_scope('embed'):
@@ -161,7 +161,7 @@ def model(logit_share_embedding= True, len_cap= None
                 tf.nn.softmax_cross_entropy_with_logits_v2(
                     labels= tf.one_hot(gold, dim_tgt, 1.0 - smooth + shared, shared)
                      , logits= logit))
-        with tf.variable_scope('training/'):
+        with tf.variable_scope('train/'):
             self.step = tf.train.get_or_create_global_step()
             step = tf.to_float(self.step + 1)
             self.lr = tf.placeholder_with_default(
