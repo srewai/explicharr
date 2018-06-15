@@ -16,11 +16,11 @@ def placeholder(dtype, shape, x= None):
         return tf.placeholder_with_default(tf.cast(x, dtype), shape)
 
 
-def normalize(x, axis= -1, eps= 1e-16, name= "normalize"):
+def normalize(x, axis= -1, eps= 1e-8, name= "normalize"):
     """returns a tensor from `x` scaled and centered across `axis`."""
     with tf.variable_scope(name):
         mean, var = tf.nn.moments(x, axis, keep_dims=True)
-        return (x - mean) * tf.rsqrt(var + eps)
+        return (x - mean) * tf.rsqrt(var + eps * eps)
 
 
 def count(x, item, relation= tf.equal, axis= 0):
@@ -38,7 +38,7 @@ def sinusoid(time, dim, freq= 1e-4, name= 'sinusoid'):
         a = tf.reshape(
             freq ** ((2 / dim) * tf.range(dim // 2, dtype= tf.float32))
             , (-1, 1)) @ tf.reshape(
-                tf.range(tf.convert_to_tensor(time, tf.float32), dtype= tf.float32)
+                tf.range(tf.cast(time, tf.float32), dtype= tf.float32)
                 , (1, -1))
         return tf.transpose(tf.reshape(tf.concat((tf.sin(a), tf.cos(a)), -1), (dim, time)))
 
@@ -67,16 +67,17 @@ def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'a
         return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
-def model(training= True, share_embedding= True
-          , end= 1
+def model(logit_share_embedding= True
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
           , dim= 512,  dim_mid= 2048
           , num_head= 8, num_layer= 6
           , activation= tf.nn.relu
+          , training= True
           , dropout= 0.1
           , smooth= 0.1
-          , warmup= 4e3):
+          , warmup= 4e3
+          , end= 1):
     # src : ?, s
     # tgt : ?, t
     # both should be padded at the end (with `end`)
@@ -88,17 +89,6 @@ def model(training= True, share_embedding= True
     # current tgt, logit y : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
     self = Record(end= end)
-    # building blocks
-    if training and dropout is not None:
-        with tf.variable_scope('training/'):
-            self.training = tf.placeholder_with_default(True, (), 'training')
-            self.dropout = tf.placeholder_with_default(dropout, (), 'dropout')
-            # todo make only one dropout mask
-            dropout = lambda x: tf.layers.dropout(x, self.dropout, training= self.training)
-    else:
-        dropout = lambda x: x
-    attention = lambda v, q, **args: multihead_attention(
-        value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     # trim `src` to the maximum valid index among the batch
     with tf.variable_scope('src'):
         src = self.src = placeholder(tf.int32, (None, None), src)
@@ -109,14 +99,23 @@ def model(training= True, share_embedding= True
         tgt = self.tgt = placeholder(tf.int32, (None, None), tgt)
         len_tgt = count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal)
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
-    # source, target, and position embeddings
+    # building blocks
+    if training:
+        with tf.variable_scope('training/'):
+            self.training = tf.placeholder_with_default(training, (), 'training')
+            self.dropout = tf.placeholder_with_default(dropout, (), 'dropout')
+            dropout = lambda x: tf.layers.dropout(
+                x, self.dropout, (tf.shape(x)[0], 1, dim), training= self.training)
+    else:
+        dropout = lambda x: x
+    attention = lambda v, q, **args: multihead_attention(
+        value= v, query= q, dim= dim // num_head, num_head= num_head, **args)
     init = tf.orthogonal_initializer()
-    emb_src = tf.get_variable('emb_src', (dim_src, dim), tf.float32, init)
-    emb_tgt = tf.get_variable('emb_tgt', (dim_tgt, dim), tf.float32, init)
     # construction
     with tf.variable_scope('encode'):
         with tf.variable_scope('embed'):
-            w = dropout(tf.gather(normalize(emb_src), src) + sinusoid(len_src, dim))
+            emb = tf.get_variable('emb', (dim_src, dim), tf.float32, init)
+            w = dropout(tf.gather(normalize(emb), src) + sinusoid(len_src, dim))
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
                 w = normalize(w + dropout(attention(w, w)))
@@ -127,7 +126,8 @@ def model(training= True, share_embedding= True
     with tf.variable_scope('decode'):
         with tf.variable_scope('embed'):
             len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
-            x = dropout(tf.gather(normalize(emb_tgt), tgt) + sinusoid(len_tgt, dim))
+            emb = tf.get_variable('emb', (dim_tgt, dim), tf.float32, init)
+            x = dropout(tf.gather(normalize(emb), tgt) + sinusoid(len_tgt, dim))
         with tf.variable_scope('mask'):
             mask = tf.log(tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense())
         for i in range(num_layer):
@@ -137,20 +137,23 @@ def model(training= True, share_embedding= True
                 h = tf.layers.dense(x, dim_mid, activation, name= 'relu')
                 h = tf.layers.dense(h, dim, name= 'linear')
                 x = normalize(x + dropout(h))
-    with tf.variable_scope('logit'):
-        logit = tf.tensordot(x, tf.transpose(emb_tgt), 1) if share_embedding \
-            else tf.layers.dense(x, dim_tgt)
-        self.y = logit[:,-1]
+        if logit_share_embedding:
+            with tf.variable_scope('logit'): logit = tf.tensordot(x, tf.transpose(emb), 1)
+        else:
+            logit = tf.layers.dense(x, dim_tgt, name= 'logit')
+    self.y = logit[:,-1]
     # done
     with tf.variable_scope('eval'):
         self.prob = tf.nn.log_softmax(logit)
-        pred = self.pred = tf.to_int32(tf.argmax(logit, -1))
-        self.acc = tf.reduce_mean(tf.to_float(tf.equal(pred, gold)))
+        self.pred = tf.to_int32(tf.argmax(logit, -1))
+        self.acc = tf.reduce_mean(tf.to_float(tf.equal(gold, self.pred)))
     if training:
         with tf.variable_scope('loss'):
-             self.loss = tf.reduce_mean(
-                 tf.nn.softmax_cross_entropy_with_logits_v2(
-                     labels= tf.gather(tf.eye(dim_tgt) * (1 - smooth) + (smooth / dim_tgt), gold)
+            smooth = self.smooth = tf.placeholder_with_default(smooth, (), 'smooth')
+            shared = smooth / dim_tgt
+            self.loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits_v2(
+                    labels= tf.one_hot(gold, dim_tgt, 1.0 - smooth + shared, shared)
                      , logits= logit))
         with tf.variable_scope('training/'):
             self.step = tf.train.get_or_create_global_step()
@@ -158,6 +161,5 @@ def model(training= True, share_embedding= True
             self.lr = tf.placeholder_with_default(
                 (dim ** -0.5) * tf.minimum(step ** -0.5, step * (warmup ** -1.5))
                 , (), 'lr')
-        self.up = tf.train.AdamOptimizer(
-            self.lr, beta1= 0.9, beta2= 0.98, epsilon= 1e-9).minimize(self.loss, self.step)
+            self.up = tf.train.AdamOptimizer(self.lr, 0.9, 0.98, 1e-9).minimize(self.loss, self.step)
     return self
