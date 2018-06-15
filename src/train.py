@@ -2,7 +2,6 @@
 
 
 trial      = '02'
-len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
 step_save  = 2**12
@@ -27,7 +26,7 @@ tgt_train = tgt_train[i]
 del i
 
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(len_cap= len_cap, src= src, tgt= tgt
+m = model(src= src, tgt= tgt
           , dim= 256, dim_mid= 512
           , num_head= 4, num_layer= 2)
 
@@ -46,7 +45,7 @@ def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
             for p in trans(m, src[i:j])[:,1:]:
                 print(decode(idx, p), file= f)
 
-def trans(m, src, begin= 2, len_cap= len_cap):
+def trans(m, src, begin= 2, len_cap= 256):
     w = m.w.eval({m.src: src, m.training: False})
     x = np.full((len(src), len_cap), m.end, dtype= np.int32)
     x[:,0] = begin

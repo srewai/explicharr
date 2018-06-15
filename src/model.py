@@ -28,10 +28,19 @@ def count(x, item, relation= tf.equal, axis= 0):
     return tf.to_int32(tf.reduce_sum(tf.to_float(relation(x, item)), axis))
 
 
-def sinusoid(t, n):
-    """returns a 2d array with `t` time steps and `n` sinusoids."""
-    a = (1e-4 ** ((2 / n) * np.arange(n // 2))).reshape(-1, 1) @ np.arange(t).reshape(1, -1)
-    return np.concatenate((np.sin(a), np.cos(a)), -1).reshape(n, t).T
+def sinusoid(time, dim, freq= 1e-4, name= 'sinusoid'):
+    """returns a rank-2 tensor of shape `time, dim`, where each row
+    corresponds to a time step and each column a sinusoid, with
+    frequencies in a geometric progression from 1 to `freq`.
+
+    """
+    with tf.variable_scope(name):
+        a = tf.reshape(
+            freq ** ((2 / dim) * tf.range(dim // 2, dtype= tf.float32))
+            , (-1, 1)) @ tf.reshape(
+                tf.range(tf.convert_to_tensor(time, tf.float32), dtype= tf.float32)
+                , (1, -1))
+        return tf.transpose(tf.reshape(tf.concat((tf.sin(a), tf.cos(a)), -1), (dim, time)))
 
 
 def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'attention'):
@@ -54,11 +63,12 @@ def multihead_attention(value, query, dim= 64, num_head= 8, bias= None, name= 'a
         q = tf.stack(split(dense(query, dim * num_head, 'q'))) # h,b,t,d
         q = (dim ** -0.5) * tf.matmul(q, k, transpose_b= True) # h,b,t,s
         if bias is not None: q += bias
+        # todo try square and normalize instead of softmax
         return tf.concat(tf.unstack(tf.matmul(tf.nn.softmax(q), v)), -1)
 
 
 def model(training= True, share_embedding= True
-          , end= 1,    len_cap= 256
+          , end= 1
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
           , dim= 512,  dim_mid= 2048
@@ -77,7 +87,7 @@ def model(training= True, share_embedding= True
     # tgt history, index x : ?, t
     # current tgt, logit y : ?, dim_tgt
     assert not dim % 2 and not dim % num_head
-    self = Record(end= end, len_cap= len_cap)
+    self = Record(end= end)
     # building blocks
     if training and dropout is not None:
         with tf.variable_scope('training/'):
@@ -92,32 +102,32 @@ def model(training= True, share_embedding= True
     # trim `src` to the maximum valid index among the batch
     with tf.variable_scope('src'):
         src = self.src = placeholder(tf.int32, (None, None), src)
-        len_src = tf.minimum(len_cap, count(count(src, end), tf.shape(src)[0], tf.not_equal) + 1)
+        len_src = count(count(src, end), tf.shape(src)[0], tf.not_equal) + 1
         src = src[:,:len_src]
     # same for `tgt`, but with one less index
     with tf.variable_scope('tgt'):
         tgt = self.tgt = placeholder(tf.int32, (None, None), tgt)
-        len_tgt = tf.minimum(len_cap, count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal))
+        len_tgt = count(count(tgt, end), tf.shape(tgt)[0], tf.not_equal)
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
     # source, target, and position embeddings
-    emb_src = tf.get_variable('emb_src', (dim_src, dim), tf.float32)
-    emb_tgt = tf.get_variable('emb_tgt', (dim_tgt, dim), tf.float32)
-    emb_pos = tf.constant(sinusoid(len_cap, dim), tf.float32, name= 'emb_pos')
+    init = tf.orthogonal_initializer()
+    emb_src = tf.get_variable('emb_src', (dim_src, dim), tf.float32, init)
+    emb_tgt = tf.get_variable('emb_tgt', (dim_tgt, dim), tf.float32, init)
     # construction
     with tf.variable_scope('encode'):
         with tf.variable_scope('embed'):
-            w = dropout(emb_pos[:len_src] + tf.gather(normalize(emb_src), src))
+            w = dropout(tf.gather(normalize(emb_src), src) + sinusoid(len_src, dim))
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i)):
                 w = normalize(w + dropout(attention(w, w)))
                 h = tf.layers.dense(w, dim_mid, activation, name= 'relu')
-                h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
+                h = tf.layers.dense(h, dim, name= 'linear')
                 w = normalize(w + dropout(h))
     self.w, self.x = w, tgt
     with tf.variable_scope('decode'):
         with tf.variable_scope('embed'):
             len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
-            x = dropout(emb_pos[:len_tgt] + tf.gather(normalize(emb_tgt), tgt))
+            x = dropout(tf.gather(normalize(emb_tgt), tgt) + sinusoid(len_tgt, dim))
         with tf.variable_scope('mask'):
             mask = tf.log(tf.linalg.LinearOperatorLowerTriangular(tf.ones((len_tgt, len_tgt))).to_dense())
         for i in range(num_layer):
@@ -125,16 +135,12 @@ def model(training= True, share_embedding= True
                 x = normalize(x + dropout(attention(x, x, bias= mask, name= 'masked_attention')))
                 x = normalize(x + dropout(attention(w, x)))
                 h = tf.layers.dense(x, dim_mid, activation, name= 'relu')
-                h = tf.layers.dense(h, dim, name= 'linear') # why no activation ????
+                h = tf.layers.dense(h, dim, name= 'linear')
                 x = normalize(x + dropout(h))
-    if share_embedding:
-        with tf.variable_scope('logit'):
-            logit = tf.reshape(tf.matmul(
-                tf.reshape(x, (-1, dim)), emb_tgt, transpose_b= True)
-                               , (-1, len_tgt, dim_tgt))
-    else:
-        logit = tf.layers.dense(x, dim_tgt, name= 'logit')
-    self.y = logit[:,-1]
+    with tf.variable_scope('logit'):
+        logit = tf.tensordot(x, tf.transpose(emb_tgt), 1) if share_embedding \
+            else tf.layers.dense(x, dim_tgt)
+        self.y = logit[:,-1]
     # done
     with tf.variable_scope('eval'):
         self.prob = tf.nn.log_softmax(logit)
