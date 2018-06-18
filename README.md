@@ -10,7 +10,9 @@ automatic text simplification with deep learning approach
 - [original](http://www.cs.pomona.edu/~dkauchak/simplification/)
 - [improved](http://ssli.ee.washington.edu/tial/projects/simplification/)
 - [we are using](https://github.com/senisioi/NeuralTextSimplification)
-  - unnormalized `-lrb-` and `-rrb-` in `test.sen`
+  + unnormalized `-LCB-` and `-RCB-` in `train.nen` and `train.sen`
+  + unnormalized `-lrb-` and `-rrb-` in `test.sen`
+  + removed double spacing
 
 # baseline bleu
 
