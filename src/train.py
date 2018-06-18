@@ -33,7 +33,7 @@ del i
 # m = model(training= False, **param)
 
 # # for profiling
-# from utils import profile
+# from util_tf import profile
 # m = model(**param)
 # with tf.Session() as sess:
 #     tf.global_variables_initializer().run()
@@ -59,12 +59,13 @@ def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
                 print(decode(idx, p), file= f)
 
 def trans(m, src, begin= 2, len_cap= 256):
+    end = m.end.eval()
     w = m.w.eval({m.src: src, m.dropout: 0})
-    x = np.full((len(src), len_cap), m.end, dtype= np.int32)
+    x = np.full((len(src), len_cap), end, dtype= np.int32)
     x[:,0] = begin
     for i in range(1, len_cap):
         p = m.p.eval({m.w: w, m.x: x[:,:i], m.dropout: 0})
-        if np.alltrue(p == m.end): break
+        if np.alltrue(p == end): break
         x[:,i] = p
     return x
 

@@ -132,7 +132,7 @@ def model(logit_share_embedding= True, len_cap= None
         with tf.variable_scope('embed'):
             pos = emb_pos[:len_tgt] if len_cap else sinusoid(len_tgt, dim)
             emb = tf.get_variable('emb', (dim_tgt, dim), tf.float32, init)
-            w = normalize(dropout(pos + tf.gather(emb, tgt)))
+            x = normalize(dropout(pos + tf.gather(emb, tgt)))
         for i in range(num_layer):
             with tf.variable_scope("layer{}".format(i + 1)):
                 x = nrd(x, attention(x, x, mask= mask, name= 'masked_attention'))
