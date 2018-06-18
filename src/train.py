@@ -13,9 +13,10 @@ ckpt       = None
 from model import model
 from os.path import expanduser, join
 from tqdm import tqdm
-from utils import permute, batch, PointedIndex, decode
-import numpy as np
-import tensorflow as tf
+from util import PointedIndex
+from util_io import decode
+from util_np import np, permute
+from util_tf import tf, batch
 tf.set_random_seed(0)
 
 
@@ -28,12 +29,17 @@ src_train = src_train[i]
 tgt_train = tgt_train[i]
 del i
 
+# # for testing
+# m = model(training= False, **param)
+
+# # for profiling
 # from utils import profile
 # m = model(**param)
 # with tf.Session() as sess:
 #     tf.global_variables_initializer().run()
 #     profile(join(path, "graph"), sess, m.up, {m.src: src_train[:batch_size], m.tgt: tgt_train[:batch_size]})
 
+# for training
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
 m = model(src= src, tgt= tgt, len_cap= len_cap, **param)
 
@@ -80,11 +86,11 @@ summ = tf.summary.merge((
     , tf.summary.scalar('step_acc', m.acc)))
 feed_eval = {m.dropout: 0}
 
-while True:
+for _ in range(10):
     for _ in tqdm(range(step_save), ncols= 70):
         sess.run(m.up)
         step = sess.run(m.step)
         if not (step % step_eval):
             wtr.add_summary(sess.run(summ, feed_eval), step)
-    saver.save(sess, "trial/model/m", step)
-    write_trans("trial/pred/m{}".format(step))
+    saver.save(sess, "trial/model/m{}".format(trial), step)
+    write_trans("trial/pred/{}_{}".format(step, trial))

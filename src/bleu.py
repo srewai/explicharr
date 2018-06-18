@@ -18,8 +18,11 @@ def parse_args():
 
 if '__main__' == __name__:
     args = parse_args()
-    from utils import load
-    proc = (lambda s: s.lower().split()) if args.ignore_case else str.split
-    gold = load(args.gold, proc= proc)
+    from util import comp, partial
+    from util_io import load
+    proc = str.split
+    if args.ignore_case: proc = comp(proc, str.lower)
+    load_corpus = comp(list, partial(map, proc), load)
+    gold = load_corpus(args.gold)
     for pred in args.pred:
-        print(pred, "{:.4f}".format(bleu(gold, load(pred, proc= proc))))
+        print(pred, "{:.4f}".format(bleu(gold, load_corpus(pred))))

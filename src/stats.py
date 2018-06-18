@@ -22,25 +22,26 @@ def alphabet(vocab):
 
 
 if '__main__' == __name__:
-    from utils import load
+    from os.path import join
+    from util_io import load
 
-    path = "../data/"
-    normal = load(path + "train.nen")
-    simple = load(path + "train.sen")
+    path = "../data"
+    src = list(map(str.split, load(join(path, "train.nen"))))
+    tgt = list(map(str.split, load(join(path, "train.sen"))))
 
-    print("normal word", stat(amap(word_count, normal)))
-    print("normal char", stat(amap(char_count, normal)))
-    print("simple word", stat(amap(word_count, simple)))
-    print("simple char", stat(amap(char_count, simple)))
+    print("src word", stat(amap(word_count, src)))
+    print("src char", stat(amap(char_count, src)))
+    print("tgt word", stat(amap(word_count, tgt)))
+    print("tgt char", stat(amap(char_count, tgt)))
 
-    vocab_normal = vocab(normal)
-    vocab_simple = vocab(simple)
+    vocab_src = vocab(src)
+    vocab_tgt = vocab(tgt)
 
-    alphabet_normal = alphabet(vocab_normal)
-    alphabet_simple = alphabet(vocab_simple)
+    alphabet_src = alphabet(vocab_src)
+    alphabet_tgt = alphabet(vocab_tgt)
 
-    char2freq = alphabet_normal.copy()
-    char2freq.update(alphabet_simple)
-    print("char\tnormal\tsimple")
+    char2freq = alphabet_src.copy()
+    char2freq.update(alphabet_tgt)
+    print("char\tsrc\ttgt")
     for char, _ in char2freq.most_common():
-        print("{}\t{}\t{}".format(char, alphabet_normal[char], alphabet_simple[char]))
+        print("{}\t{}\t{}".format(char, alphabet_src[char], alphabet_tgt[char]))

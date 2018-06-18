@@ -1,33 +1,27 @@
 #!/usr/bin/env python3
 
-from os.path import join
-from utils import load, chartab, PointedIndex, encode, jagged_array
-import numpy as np
-
 
 path = "trial/data"
 
 
-src = load(join(path, "train_src"))
-tgt = load(join(path, "train_tgt"))
+from os.path import join
+from util import partial, PointedIndex
+from util_io import load, chartab, encode
+from util_np import np, jagged_array
+
+src = list(load(join(path, "train_src")))
+tgt = list(load(join(path, "train_tgt")))
 
 idx2src = PointedIndex(chartab(src))
 idx2tgt = PointedIndex(chartab(tgt))
-np.save("trial/data/index", dict(idx2src= idx2src.vec, idx2tgt= idx2tgt.vec))
+enc_src = partial(encode, idx2src)
+enc_tgt = partial(encode, idx2tgt)
 
-src = [encode(idx2src, sent) for sent in src]
-tgt = [encode(idx2tgt, sent) for sent in tgt]
-src = jagged_array(src, fill= idx2src("\n"), shape= (len(src), max(map(len, src))), dtype= np.uint8)
-tgt = jagged_array(tgt, fill= idx2tgt("\n"), shape= (len(tgt), max(map(len, tgt))), dtype= np.uint8)
-np.save("trial/data/train_src", src)
-np.save("trial/data/train_tgt", tgt)
+assert 1 == idx2src("\n") == idx2tgt("\n")
+pack = lambda txt: jagged_array(txt, fill= 1, shape= (len(txt), max(map(len, txt))), dtype= np.uint8)
 
-
-src = load(join(path, "valid_src"))
-tgt = load(join(path, "valid_tgt"))
-src = [encode(idx2src, sent) for sent in src]
-tgt = [encode(idx2tgt, sent) for sent in tgt]
-src = jagged_array(src, fill= idx2src("\n"), shape= (len(src), max(map(len, src))), dtype= np.uint8)
-tgt = jagged_array(tgt, fill= idx2tgt("\n"), shape= (len(tgt), max(map(len, tgt))), dtype= np.uint8)
-np.save("trial/data/valid_src", src)
-np.save("trial/data/valid_tgt", tgt)
+np.save(join(path, "index"), dict(idx2src= idx2src.vec, idx2tgt= idx2tgt.vec))
+np.save(join(path, "train_src"), pack(list(map(enc_src, src))))
+np.save(join(path, "train_tgt"), pack(list(map(enc_tgt, tgt))))
+np.save(join(path, "valid_src"), pack(list(map(enc_src, load(join(path, "valid_src"))))))
+np.save(join(path, "valid_tgt"), pack(list(map(enc_tgt, load(join(path, "valid_tgt"))))))

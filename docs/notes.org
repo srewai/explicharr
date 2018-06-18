@@ -6,9 +6,6 @@
 
 * todo
 
-- try smaller net
-- try half middle layers
-- add relu to dense layers after middle layers
-- try longer sent
-- weight tying ???? https://arxiv.org/abs/1608.05859
+- try longer sent with convolution and pooling to reduce length
 - beam search
+- weighted search

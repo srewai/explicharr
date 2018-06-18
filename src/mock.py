@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
-from os.path import join
+
+len_cap = 2**8
+proc  = str.lower
+path  = "../data"
+path2 = "trial/data"
 
 
-def mock(src, tgt, src2, tgt2, len_cap= 512, proc= str.lower):
+def mock(src, tgt, src2, tgt2, len_cap, proc):
     keep = []
     with open(src) as fs, open(tgt) as ft:
         for st in zip(fs, ft):
@@ -17,16 +21,13 @@ def mock(src, tgt, src2, tgt2, len_cap= 512, proc= str.lower):
             print(proc(t), end= "", file= ft)
 
 
-len_cap = 2**8
-
-
-path, path2 = "../data", "trial/data"
-mock(len_cap= len_cap
+from os.path import join
+mock(len_cap= len_cap, proc= proc
      , src=  join(path,  "train.nen")
      , tgt=  join(path,  "train.sen")
      , src2= join(path2, "train_src")
      , tgt2= join(path2, "train_tgt"))
-mock(len_cap= len_cap
+mock(len_cap= len_cap, proc= proc
      , src=  join(path,  "test.nen")
      , tgt=  join(path,  "test.sen")
      , src2= join(path2, "valid_src")
