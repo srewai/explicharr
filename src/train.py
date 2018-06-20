@@ -50,7 +50,7 @@ m = model(src= src, tgt= tgt, len_cap= len_cap, **param)
 m.p = m.pred[:,-1]
 src = np.load("trial/data/valid_src.npy")
 rng = range(0, len(src) + batch_size, batch_size)
-idx = PointedIndex(np.load("trial/data/index.npy").item()['idx2tgt'])
+idx = PointedIndex(np.load("trial/data/index_tgt.npy").item())
 
 def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
     with open(path, 'w') as f:

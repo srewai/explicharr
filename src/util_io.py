@@ -1,12 +1,11 @@
 from collections import Counter, deque
 
 
-def clean(s):
-    s = s.replace("-LCB-", "{")
-    s = s.replace("-RCB-", "}")
-    s = s.replace("\\/", " / ")
-    s = " ".join(s.split())
-    return s
+def clean(sent):
+    sent = sent.replace("-LCB-", "{")
+    sent = sent.replace("-RCB-", "}")
+    sent = sent.replace("\\/", " / ")
+    return " ".join(sent.split())
 
 
 def load(filename):
