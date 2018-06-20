@@ -22,7 +22,8 @@ for line in load(join(path, "aligned-good_partial-0.53.txt")):
     src.append(clean(s))
     tgt.append(clean(t))
 
-src_tgt = [(s, t) for s, t in zip(src, tgt) if s != t and max(len(s), len(t)) < len_cap]
+len_cap -= 2 # start and end paddings
+src_tgt = [(s, t) for s, t in zip(src, tgt) if s != t and max(len(s), len(t)) <= len_cap]
 
 import random
 random.seed(0)
