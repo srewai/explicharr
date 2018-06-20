@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-trial = '00'
+trial = '01'
 param = dict(dim= 256, dim_mid= 512, num_head= 4, num_layer= 2, dropout= 0.25)
 len_cap    = 2**8
 batch_size = 2**6
@@ -87,11 +87,11 @@ summ = tf.summary.merge((
     , tf.summary.scalar('step_acc', m.acc)))
 feed_eval = {m.dropout: 0}
 
-for _ in range(10):
+for _ in range(5):
     for _ in tqdm(range(step_save), ncols= 70):
         sess.run(m.up)
         step = sess.run(m.step)
         if not (step % step_eval):
             wtr.add_summary(sess.run(summ, feed_eval), step)
-    saver.save(sess, "trial/model/m{}".format(trial), step)
+    saver.save(sess, "trial/model/m{}".format(trial), step, write_meta_graph= False)
     write_trans("trial/pred/{}_{}".format(step, trial))
