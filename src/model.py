@@ -144,7 +144,7 @@ def model(logit_share_embedding= True, len_cap= None
         len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
         pos = emb_pos[:len_tgt] if len_cap else sinusoid(len_tgt, dim)
         emb = tf.get_variable('emb', (dim_tgt, dim), tf.float32, init)
-        x = dropout(pos + emb)
+        x = dropout(pos + tf.gather(emb, tgt))
         # x = normalize(x) todo test if necessary
     with tf.variable_scope('encode'):
         for i in range(num_layer):
