@@ -61,13 +61,14 @@ def multihead_attention(value, query, dim= 64, num_head= 8, softmax= True, mask=
         return tf.concat(tf.unstack(a @ v), -1)
 
 
-def model(logit_share_embedding= True, len_cap= None
+def model(len_cap= None
           , src= None, dim_src= 256
           , tgt= None, dim_tgt= 256
-          , dim= 512,  dim_mid= 2048
-          , num_head= 8, num_layer= 6
+          , dim= 256,  dim_mid= 512
+          , num_head= 4, num_layer= 2
           , softmax= True
           , activation= tf.nn.relu
+          , logit_share_embedding= False
           , training= True
           , dropout= 0.1
           , smooth= 0.1

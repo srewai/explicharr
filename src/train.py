@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 
-trial = '01'
-param = dict(dim= 256, dim_mid= 512, num_head= 4, num_layer= 2, dropout= 0.25)
+trial = '00'
 len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
@@ -30,18 +29,18 @@ tgt_train = tgt_train[i]
 del i
 
 # # for testing
-# m = model(training= False, **param)
+# m = model(training= False)
 
 # # for profiling
 # from util_tf import profile
-# m = model(**param)
+# m = model()
 # with tf.Session() as sess:
 #     tf.global_variables_initializer().run()
 #     profile(join(path, "graph"), sess, m.up, {m.src: src_train[:batch_size], m.tgt: tgt_train[:batch_size]})
 
 # for training
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(src= src, tgt= tgt, len_cap= len_cap, **param)
+m = model(src= src, tgt= tgt, len_cap= len_cap)
 
 ########################
 # autoregressive model #
@@ -93,5 +92,5 @@ for _ in range(5):
         step = sess.run(m.step)
         if not (step % step_eval):
             wtr.add_summary(sess.run(summ, feed_eval), step)
-    saver.save(sess, "trial/model/m{}".format(trial), step, write_meta_graph= False)
     write_trans("trial/pred/{}_{}".format(step, trial))
+saver.save(sess, "trial/model/m{}".format(trial), write_meta_graph= False)
