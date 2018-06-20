@@ -1,6 +1,14 @@
 from collections import Counter, deque
 
 
+def clean(s):
+    s = s.replace("-LCB-", "{")
+    s = s.replace("-RCB-", "}")
+    s = s.replace("\\/", " / ")
+    s = " ".join(s.split())
+    return s
+
+
 def load(filename):
     with open(filename) as file:
         for line in file:
