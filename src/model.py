@@ -179,6 +179,22 @@ def model(len_cap= None
         self.pred = tf.to_int32(tf.argmax(logit, -1))
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(gold, self.pred)))
     if training:
+        # <experimental: approximate autoregressive>
+        with tf.variable_scope('emb_tgt'):
+            x = dropout(pos + tf.concat((tf.gather(emb, tgt[:,:1]), tf.tensordot(tf.nn.softmax(logit[:,:-1]), emb, 1)), 1))
+        with tf.variable_scope('decode', reuse= True):
+            for i in range(num_layer):
+                with tf.variable_scope("layer{}".format(i + 1)):
+                    with tf.variable_scope("causal_attention"):
+                        x = nrd(x, attention(x, x, mask))
+                    with tf.variable_scope("attention"):
+                        x = nrd(x, attention(w, x))
+                    with tf.variable_scope("forward"):
+                        x = nrd(x, forward(x))
+        with tf.variable_scope('logit', reuse= True):
+            logit = tf.tensordot(x, tf.transpose(emb), 1) \
+                if logit_share_embedding else tf.layers.dense(x, dim_tgt)
+        # </experimental>
         with tf.variable_scope('loss'):
             smooth = self.smooth = tf.placeholder_with_default(smooth, (), 'smooth')
             shared = smooth / dim_tgt
