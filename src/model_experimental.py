@@ -132,6 +132,7 @@ def model(len_cap= None
         tgt = self.tgt = placeholder(tf.int32, (None, None), tgt)
         len_tgt = count_not_all(tf.equal(tgt, end))
         tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
+        self.gold = gold
     # embedding
     if len_cap: emb_pos = tf.constant(sinusoid(len_cap, dim, array= True), tf.float32, name= 'sinusoid')
     init = tf.orthogonal_initializer()
@@ -140,12 +141,15 @@ def model(len_cap= None
         emb = tf.get_variable('emb', (dim_src, dim), tf.float32, init)
         w = dropout(pos + tf.gather(emb, src))
         # w = normalize(w) todo test if necessary
-    self.x = tgt
+    # self.x = tgt
     with tf.variable_scope('emb_tgt'):
-        len_tgt = tf.shape(tgt)[1] # in case tgt is fed by user
-        pos = emb_pos[:len_tgt] if len_cap else sinusoid(len_tgt, dim)
         emb = tf.get_variable('emb', (dim_tgt, dim), tf.float32, init)
-        x = dropout(pos + tf.gather(emb, tgt))
+        # x = tf.gather(emb, tgt)
+        x = self.x = placeholder(tf.float32, (None, None, dim_tgt), tf.one_hot(tgt, dim_tgt), name= 'prob')
+        x = tf.tensordot(x, emb, 1)
+        len_tgt = tf.shape(x)[1] # in case tgt is fed by user
+        pos = emb_pos[:len_tgt] if len_cap else sinusoid(len_tgt, dim)
+        x = dropout(pos + x)
         # x = normalize(x) todo test if necessary
     with tf.variable_scope('encode'):
         for i in range(num_layer):
@@ -154,7 +158,7 @@ def model(len_cap= None
                     w = nrd(w, attention(w, w))
                 with tf.variable_scope("forward"):
                     w = nrd(w, forward(w))
-    self.w, self.x = w, tgt
+    self.w = w
     with tf.variable_scope('decode'):
         with tf.variable_scope('mask'):
             t = tf.shape(x)[1]
@@ -173,35 +177,37 @@ def model(len_cap= None
         logit = self.logit = tf.tensordot(x, tf.transpose(emb), 1) \
             if logit_share_embedding else tf.layers.dense(x, dim_tgt)
         self.y = logit[:,-1]
+        self.p = tf.nn.softmax(self.y)
     # done
     with tf.variable_scope('eval'):
         self.prob = tf.nn.log_softmax(logit)
         self.pred = tf.to_int32(tf.argmax(logit, -1))
         self.acc = tf.reduce_mean(tf.to_float(tf.equal(gold, self.pred)))
+    # # <experimental: approximate autoregressive>
+    # if training:
+    #     with tf.variable_scope('emb_tgt'):
+    #         x = dropout(pos + tf.concat((tf.gather(emb, tgt[:,:1]), tf.tensordot(tf.nn.softmax(logit[:,:-1]), emb, 1)), 1))
+    #     with tf.variable_scope('decode', reuse= True):
+    #         for i in range(num_layer):
+    #             with tf.variable_scope("layer{}".format(i + 1)):
+    #                 with tf.variable_scope("causal_attention"):
+    #                     x = nrd(x, attention(x, x, mask))
+    #                 with tf.variable_scope("attention"):
+    #                     x = nrd(x, attention(w, x))
+    #                 with tf.variable_scope("forward"):
+    #                     x = nrd(x, forward(x))
+    #     with tf.variable_scope('logit', reuse= True):
+    #         logit = tf.tensordot(x, emb, 1) \
+    #             if logit_share_embedding else tf.layers.dense(x, dim_tgt)
+    # # </experimental>
+    with tf.variable_scope('loss'):
+        smooth = self.smooth = tf.placeholder_with_default(smooth, (), 'smooth')
+        shared = smooth / dim_tgt
+        self.loss = tf.reduce_mean(
+            tf.nn.softmax_cross_entropy_with_logits_v2(
+                labels= tf.one_hot(gold, dim_tgt, 1.0 - smooth + shared, shared)
+                 , logits= logit))
     if training:
-        # <experimental: approximate autoregressive>
-        with tf.variable_scope('emb_tgt'):
-            x = dropout(pos + tf.concat((tf.gather(emb, tgt[:,:1]), tf.tensordot(tf.nn.softmax(logit[:,:-1]), emb, 1)), 1))
-        with tf.variable_scope('decode', reuse= True):
-            for i in range(num_layer):
-                with tf.variable_scope("layer{}".format(i + 1)):
-                    with tf.variable_scope("causal_attention"):
-                        x = nrd(x, attention(x, x, mask))
-                    with tf.variable_scope("attention"):
-                        x = nrd(x, attention(w, x))
-                    with tf.variable_scope("forward"):
-                        x = nrd(x, forward(x))
-        with tf.variable_scope('logit', reuse= True):
-            logit = tf.tensordot(x, tf.transpose(emb), 1) \
-                if logit_share_embedding else tf.layers.dense(x, dim_tgt)
-        # </experimental>
-        with tf.variable_scope('loss'):
-            smooth = self.smooth = tf.placeholder_with_default(smooth, (), 'smooth')
-            shared = smooth / dim_tgt
-            self.loss = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits_v2(
-                    labels= tf.one_hot(gold, dim_tgt, 1.0 - smooth + shared, shared)
-                     , logits= logit))
         with tf.variable_scope('lr'):
             self.step = tf.train.get_or_create_global_step()
             step = tf.to_float(self.step + 1)

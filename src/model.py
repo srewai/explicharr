@@ -154,7 +154,7 @@ def model(len_cap= None
                     w = nrd(w, attention(w, w))
                 with tf.variable_scope("forward"):
                     w = nrd(w, forward(w))
-    self.w, self.x = w, tgt
+    self.w = w
     with tf.variable_scope('decode'):
         with tf.variable_scope('mask'):
             t = tf.shape(x)[1]

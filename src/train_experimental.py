@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 
-trial = '00'
+trial = '02'
 len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
 step_save  = 2**12
-ckpt       = None
+ckpt       = "trial/model/m00"
 
 
-from model import model
+from model_experimental import model
 from os.path import expanduser, join
 from tqdm import tqdm
 from util import PointedIndex
@@ -42,33 +42,35 @@ del i
 
 # for training
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(src= src, tgt= tgt, len_cap= len_cap)
+with tf.variable_scope(""):
+    mtrain = model(len_cap= len_cap)
+with tf.variable_scope("", reuse= True):
+    minfer = model(len_cap= len_cap, src= src, tgt= tgt, training= False)
 
 ########################
 # autoregressive model #
 ########################
 
-m.p = m.pred[:,-1]
+def infer(m, src, len_cap, start= 2):
+    x = np.empty((len(src), len_cap, int(m.logit.shape[-1])), np.float32)
+    # todo this should be handled in the model
+    a = np.zeros(int(m.x.shape[-1]), np.float32)
+    a[start] = 1.0
+    x[:,0] = a
+    w = m.w.eval({m.src: src})
+    for i in range(1, len_cap):
+        x[:,i] = m.p.eval({m.w: w, m.x: x[:,:i]})
+    return x
+
 src = np.load("trial/data/valid_src.npy")
-rng = range(0, len(src) + batch_size, batch_size)
 idx = PointedIndex(np.load("trial/data/index_tgt.npy").item())
 
-def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
+def trans(path, m, src= src, idx= idx, batch_size= batch_size):
+    rng = range(0, len(src) + batch_size, batch_size)
     with open(path, 'w') as f:
         for i, j in zip(rng, rng[1:]):
-            for p in trans(m, src[i:j])[:,1:]:
-                print(decode(idx, p), file= f)
-
-def trans(m, src, begin= 2, len_cap= 256):
-    end = m.end.eval()
-    w = m.w.eval({m.src: src, m.dropout: 0})
-    x = np.full((len(src), len_cap), end, dtype= np.int32)
-    x[:,0] = begin
-    for i in range(1, len_cap):
-        p = m.p.eval({m.w: w, m.x: x[:,:i], m.dropout: 0})
-        if np.alltrue(p == end): break
-        x[:,i] = p
-    return x
+            for p in infer(m, src[i:j], len_cap= len_cap)[:,1:]:
+                print(decode(idx, np.argmax(p, axis= -1)), file= f)
 
 ############
 # training #
@@ -84,15 +86,16 @@ else:
     tf.global_variables_initializer().run()
 
 summ = tf.summary.merge((
-    tf.summary.scalar('step_loss', m.loss)
-    , tf.summary.scalar('step_acc', m.acc)))
-feed_eval = {m.dropout: 0}
+    tf.summary.scalar('step_loss', minfer.loss)
+    , tf.summary.scalar('step_acc', minfer.acc)))
 
 for _ in range(5):
     for _ in tqdm(range(step_save), ncols= 70):
-        sess.run(m.up)
-        step = sess.run(m.step)
+        src, gold = sess.run((minfer.src, minfer.gold))
+        x = infer(minfer, src, gold.shape[1])
+        sess.run(mtrain.up, {mtrain.src: src, mtrain.gold: gold, mtrain.x: x})
+        step = sess.run(mtrain.step)
         if not (step % step_eval):
-            wtr.add_summary(sess.run(summ, feed_eval), step)
-    write_trans("trial/pred/{}_{}".format(step, trial))
+            wtr.add_summary(sess.run(summ), step)
+    trans("trial/pred/{}_{}".format(step, trial), minfer)
 saver.save(sess, "trial/model/m{}".format(trial), write_meta_graph= False)
