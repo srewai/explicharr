@@ -6,13 +6,4 @@
 
 * todo
 
-** data
-
-- quotation inconsistency in train and test
-- non-breaking white space
-- \/ and other escapes
-
-** model
-
-- convolution and pooling to reduce length
-- beam search, weighted search
+- time major order for efficiency
