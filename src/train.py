@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
 
-trial = '00'
+trial      = '01'
 len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
-step_save  = 2**12
 ckpt       = None
 
 
-from model import model
+from model import Transformer
 from os.path import expanduser, join
 from tqdm import tqdm
 from util import PointedIndex
@@ -22,53 +21,42 @@ tf.set_random_seed(0)
 path = expanduser("~/cache/tensorboard-logdir/explicharr")
 src_train = np.load("trial/data/train_src.npy")
 tgt_train = np.load("trial/data/train_tgt.npy")
+src_valid = np.load("trial/data/valid_src.npy")
+tgt_valid = np.load("trial/data/valid_tgt.npy")
 assert src_train.shape[1] <= len_cap
 assert tgt_train.shape[1] <= len_cap
+assert src_valid.shape[1] <= len_cap
+assert tgt_valid.shape[1] <= len_cap
 
-i = permute(len(src_train))
-src_train = src_train[i]
-tgt_train = tgt_train[i]
-del i
-
-# # for testing
-# m = model(training= False)
+model = Transformer.new()
+model_train = model.data(*batch((src_train, tgt_train), batch_size), len_cap)
+model_valid = model.data(*batch((src_valid, tgt_valid), batch_size), len_cap)
+forcing_train = model_train.forcing().train()
+autoreg_train = model_train.autoreg().train()
+autoreg_valid = model_valid.autoreg(trainable= False)
 
 # # for profiling
+# m = Transformer.new().autoreg(trainable= True).train()
 # from util_tf import profile
-# m = model()
 # with tf.Session() as sess:
 #     tf.global_variables_initializer().run()
-#     profile(join(path, "graph"), sess, m.up, {m.src: src_train[:batch_size], m.tgt: tgt_train[:batch_size]})
+#     profile(join(path, "graph"), sess, m.up
+#             , {m.src: src_train[:batch_size]
+#                , m.tgt: tgt_train[:batch_size,:-1]
+#                , m.gold: tgt_train[:batch_size,1:]})
 
-# for training
-src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
-m = model(src= src, tgt= tgt, len_cap= len_cap)
+#############
+# translate #
+#############
 
-########################
-# autoregressive model #
-########################
+idx_tgt = PointedIndex(np.load("trial/data/index_tgt.npy").item())
 
-m.p = m.pred[:,-1]
-src = np.load("trial/data/valid_src.npy")
-rng = range(0, len(src) + batch_size, batch_size)
-idx = PointedIndex(np.load("trial/data/index_tgt.npy").item())
-
-def write_trans(path, src= src, rng= rng, idx= idx, batch_size= batch_size):
+def trans(path, m= autoreg_valid, src= src_valid, idx= idx_tgt, len_cap= len_cap, batch_size= batch_size):
+    rng = range(0, len(src) + batch_size, batch_size)
     with open(path, 'w') as f:
         for i, j in zip(rng, rng[1:]):
-            for p in trans(m, src[i:j])[:,1:]:
+            for p in m.pred.eval({m.src: src[i:j], m.tgt: src[i:j,:1], m.len_tgt: len_cap}):
                 print(decode(idx, p), file= f)
-
-def trans(m, src, begin= 2, len_cap= 256):
-    end = m.end.eval()
-    w = m.w.eval({m.src: src, m.dropout: 0})
-    x = np.full((len(src), len_cap), end, dtype= np.int32)
-    x[:,0] = begin
-    for i in range(1, len_cap):
-        p = m.p.eval({m.w: w, m.x: x[:,:i], m.dropout: 0})
-        if np.alltrue(p == end): break
-        x[:,i] = p
-    return x
 
 ############
 # training #
@@ -83,16 +71,33 @@ if ckpt:
 else:
     tf.global_variables_initializer().run()
 
-summ = tf.summary.merge((
-    tf.summary.scalar('step_loss', m.loss)
-    , tf.summary.scalar('step_acc', m.acc)))
-feed_eval = {m.dropout: 0}
+summ = tf.summary.merge(
+    (tf.summary.scalar('step_loss', autoreg_valid.loss)
+     , tf.summary.scalar('step_acc', autoreg_valid.acc)))
 
-for _ in range(5):
-    for _ in tqdm(range(step_save), ncols= 70):
-        sess.run(m.up)
-        step = sess.run(m.step)
-        if not (step % step_eval):
-            wtr.add_summary(sess.run(summ, feed_eval), step)
-    write_trans("trial/pred/{}_{}".format(step, trial))
-saver.save(sess, "trial/model/m{}".format(trial), write_meta_graph= False)
+epoch = len(src_train) // batch_size
+
+# warmup only with teacher forcing
+for _ in tqdm(range(epoch), ncols= 70):
+    sess.run(forcing_train.up)
+    step = sess.run(forcing_train.step)
+    if not (step % step_eval):
+        wtr.add_summary(sess.run(summ), step)
+
+bptt = 6, 6, 4, 2, 4, 6, 6
+auto = 3, 2, 2, 1, 2, 2, 3
+# mixed teacher forcing, autoregressive, and backprop through time
+for b, a in zip(bptt, auto):
+    for _ in tqdm(range(epoch), ncols= 70):
+        if not step % b:
+            sess.run(autoreg_train.up)
+        elif not step % a:
+            s, g, p = sess.run(        (autoreg_train.src,    autoreg_train.gold,    autoreg_train.prob))
+            sess.run(forcing_train.up, {forcing_train.src: s, forcing_train.gold: g, forcing_train.tgt_prob: p})
+        else:
+            sess.run(forcing_train.up)
+        step = sess.run(forcing_train.step)
+        if not step % step_eval:
+            wtr.add_summary(sess.run(summ), step)
+    saver.save(sess, "trial/model/{}_{}".format(trial, step), write_meta_graph= False)
+    trans("trial/pred/{}_{}".format(step, trial))

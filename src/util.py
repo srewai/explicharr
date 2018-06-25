@@ -18,7 +18,6 @@ def get(k):
 
 
 class Record(object):
-    """https://en.wikipedia.org/wiki/Record_(computer_science)"""
 
     def __init__(self, **kwargs):
         for k, v in kwargs.items():

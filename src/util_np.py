@@ -16,7 +16,7 @@ def jagged_array(x, fill, shape, dtype):
 
 def permute(n, seed= 0):
     """returns a random permutation of the first `n` natural numbers."""
-    np.random.seed(0)
+    np.random.seed(seed)
     i = np.arange(n)
     np.random.shuffle(i)
     return i
