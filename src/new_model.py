@@ -121,12 +121,6 @@ class Transformer(Record):
       loss : f32 ()              prediction loss
        acc : f32 ()              accuracy
 
-    and as an autoregressive model : w, x -> y
-
-    w : f32  (b, s, dim)     encoded `src`
-    x : f32  (b, ?, dim_tgt) target feed for the current prediction
-
-
     and if `training`
 
     dropout : f32 () dropout rate
@@ -254,7 +248,8 @@ class Transformer(Record):
             for enc in encode:
                 w = enc(w, dropout)
         with tf.variable_scope('emb_tgt_forcing'):
-            x = tf.gather(emb_tgt, tgt) # todo try smoothing
+            tgt_prob = tf.one_hot(tgt, int(emb_tgt.shape[0])) # todo try smoothing
+            x = tf.tensordot(tgt_prob, emb_tgt, 1)
             x = dropout(x + position(tf.shape(x)[1]))
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
@@ -264,17 +259,18 @@ class Transformer(Record):
                 x = dec(x, x, w, dropout, mask)
         with tf.variable_scope('logit_forcing'):
             y = logit(x)
-        return Transformer(output= y, **self)
+        return Transformer(tgt_prob= tgt_prob, output= y, **self)
 
     def post(self):
         gold, output, smooth = self.gold, self.output, self.smooth
         with tf.variable_scope('pred'):
+            prob = tf.nn.softmax(output)
             pred = tf.to_int32(tf.argmax(output, -1))
         with tf.variable_scope('loss'):
             loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits= output, labels= smooth(gold)))
         with tf.variable_scope('acc'):
             acc = tf.reduce_mean(tf.to_float(tf.equal(gold, pred)))
-        return Transformer(pred= pred, loss= loss, acc= acc, **self)
+        return Transformer(prob= prob, pred= pred, loss= loss, acc= acc, **self)
 
     def train(self, warmup= 4e3, beta1= 0.9, beta2= 0.98, epsilon= 1e-9):
         dim, loss = int(self.emb_tgt.shape[1]), self.loss
