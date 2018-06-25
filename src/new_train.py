@@ -5,7 +5,7 @@ trial = '02'
 len_cap    = 2**8
 batch_size = 2**6
 step_eval  = 2**7
-ckpt       = None
+ckpt       = 'trial/model/02_17220'
 
 
 from new_model import Transformer
@@ -29,18 +29,23 @@ src_train = src_train[i]
 tgt_train = tgt_train[i]
 del i
 
+# for training
 epoch = int(len(src_train) * (step_eval - 2) / step_eval / batch_size)
 src, tgt = batch((src_train, tgt_train), batch_size= batch_size)
 m = Transformer.new().prep(len_cap= len_cap, src= src, tgt= tgt)
-mtrain = m.forcing().post().train(warmup= epoch)
-minfer = m.autoreg().post()
+# mtrain = m.forcing().post().train(warmup= epoch)
+# minfer = m.autoreg().post()
+minfer = m.autoreg(trainable= True).post().train(warmup= epoch)
 
-# # todo profiling
+# # for profiling
+# m = Transformer.new().prep().autoreg(trainable= True).post().train()
 # from util_tf import profile
-# m = model()
 # with tf.Session() as sess:
 #     tf.global_variables_initializer().run()
-#     profile(join(path, "graph"), sess, m.up, {m.src: src_train[:batch_size], m.tgt: tgt_train[:batch_size]})
+#     profile(join(path, "graph"), sess, m.up
+#             , {m.src: src_train[:batch_size]
+#                , m.tgt: tgt_train[:batch_size,:-1]
+#                , m.gold: tgt_train[:batch_size,1:]})
 
 #############
 # translate #
@@ -63,8 +68,9 @@ def trans(path, m= minfer, src= src, idx= idx, len_cap= len_cap, batch_size= bat
 
 saver = tf.train.Saver()
 sess = tf.InteractiveSession()
-wtr_autoreg = tf.summary.FileWriter(join(path, "trial{}/autoreg".format(trial)))
-wtr_forcing = tf.summary.FileWriter(join(path, "trial{}/forcing".format(trial)))
+wtr_autoreg = tf.summary.FileWriter(join(path, "trial{}".format(trial)))
+# wtr_autoreg = tf.summary.FileWriter(join(path, "trial{}/autoreg".format(trial)))
+# wtr_forcing = tf.summary.FileWriter(join(path, "trial{}/forcing".format(trial)))
 
 if ckpt:
     saver.restore(sess, ckpt)
@@ -74,28 +80,37 @@ else:
 summ_autoreg = tf.summary.merge((
     tf.summary.scalar('step_loss', minfer.loss)
     , tf.summary.scalar('step_acc', minfer.acc)))
-summ_forcing = tf.summary.merge((
-    tf.summary.scalar('step_loss', mtrain.loss)
-    , tf.summary.scalar('step_acc', mtrain.acc)))
-feed_eval = {mtrain.dropout.rate: 0}
+# summ_forcing = tf.summary.merge((
+#     tf.summary.scalar('step_loss', mtrain.loss)
+#     , tf.summary.scalar('step_acc', mtrain.acc)))
+# feed_eval = {mtrain.dropout.rate: 0}
 
-for _ in tqdm(range(epoch), ncols= 70):
-    sess.run(mtrain.up)
-    step = sess.run(mtrain.step)
-    if not (step % step_eval):
-        wtr_autoreg.add_summary(sess.run(summ_autoreg))
-        wtr_forcing.add_summary(sess.run(summ_forcing, feed_eval))
+# for _ in tqdm(range(epoch), ncols= 70):
+#     sess.run(mtrain.up)
+#     step = sess.run(mtrain.step)
+#     if not (step % step_eval):
+#         wtr_autoreg.add_summary(sess.run(summ_autoreg), step)
+#         wtr_forcing.add_summary(sess.run(summ_forcing, feed_eval), step)
 
-for r in 4, 3, 3, 2, 2, 2, 2:
+# for r in 4, 3, 3, 2, 2, 2, 2:
+#     for _ in tqdm(range(epoch), ncols= 70):
+#         if step % r:
+#             sess.run(mtrain.up)
+#         else:
+#             s, g, p = sess.run((minfer.src, minfer.gold, minfer.prob))
+#             sess.run(mtrain.up, {mtrain.src: s, mtrain.gold: g, mtrain.tgt_prob: p})
+#         step = sess.run(mtrain.step)
+#         if not step % step_eval:
+#             wtr_autoreg.add_summary(sess.run(summ_autoreg), step)
+#             wtr_forcing.add_summary(sess.run(summ_forcing, feed_eval), step)
+#     saver.save(sess, "trial/model/{}_{}".format(trial, step), write_meta_graph= False)
+#     trans("trial/pred/{}_{}".format(step, trial))
+
+for _ in range(5):
     for _ in tqdm(range(epoch), ncols= 70):
-        if step % r:
-            sess.run(mtrain.up)
-        else:
-            s, g, p = sess.run((minfer.src, minfer.gold, minfer.prob))
-            sess.run(mtrain.up, {mtrain.src: s, mtrain.gold: g, mtrain.tgt_prob: p})
-        step = sess.run(mtrain.step)
-        if not step % step_eval:
-            wtr_autoreg.add_summary(sess.run(summ_autoreg))
-            wtr_forcing.add_summary(sess.run(summ_forcing, feed_eval))
+        sess.run(minfer.up)
+        step = sess.run(minfer.step)
+        if not (step % step_eval):
+            wtr_autoreg.add_summary(sess.run(summ_autoreg), step)
     saver.save(sess, "trial/model/{}_{}".format(trial, step), write_meta_graph= False)
     trans("trial/pred/{}_{}".format(step, trial))

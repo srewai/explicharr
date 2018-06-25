@@ -182,12 +182,12 @@ class Transformer(Record):
         count_not_all = lambda x: tf.reduce_sum(tf.to_int32(~ tf.reduce_all(x, 0)))
         # trim `src` to the maximum valid index among the batch, plus one for padding
         with tf.variable_scope('src'):
-            src = placeholder(tf.int32, (None, None), src)
+            src = src_ = placeholder(tf.int32, (None, None), src)
             len_src = count_not_all(tf.equal(src, end)) + 1
             src = src[:,:len_src]
         # same for `tgt`, but with one less index
         with tf.variable_scope('tgt'):
-            tgt = placeholder(tf.int32, (None, None), tgt)
+            tgt = tgt_ = placeholder(tf.int32, (None, None), tgt)
             len_tgt = count_not_all(tf.equal(tgt, end))
             tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
         # sinusoidal positional encoding
@@ -197,7 +197,7 @@ class Transformer(Record):
             ): sinusoid[:t]
         else:
             position = lambda t, dim= dim: sinusoid(t, dim)
-        return Transformer(src= src, tgt= tgt, gold= gold, position= position, **self)
+        return Transformer(src_= src_, tgt_= tgt_, src= src, tgt= tgt, gold= gold, position= position, **self)
 
     def autoreg(self, trainable= False):
         position, logit, dropout = self.position, self.logit, self.dropout if trainable else identity
@@ -208,32 +208,34 @@ class Transformer(Record):
             w = tf.gather(emb_src, src)
             w = dropout(w + position(tf.shape(w)[1]))
         with tf.variable_scope('encode_autoreg'):
-            for enc in encode:
-                w = enc(w, dropout)
+            for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('decode_autoreg'):
-            len_tgt = tf.shape(tgt)[1]
-            pos = position(len_tgt)
+            with tf.variable_scope('init'):
+                len_tgt = tf.shape(tgt)[1]
+                pos = position(len_tgt)
+                x = tf.one_hot(tgt[:,:1], dim_tgt) # todo try smoothing
+                y = x[:,1:]
+                v = tf.reshape(y, (tf.shape(y)[0], 0, dim))
             def autoreg(i, x, v, y):
                 # i : ()              time step from 0 to t=len_tgt
                 # x : (b, 1, dim_tgt) prob dist over x_i
                 # v : (b, t, dim)     embeded x
                 # y : (b, t, dim_tgt) logit over x one step ahead
                 # todo find way around concat
-                x = dropout(tf.tensordot(x, emb_tgt, 1) + pos[i])
-                v = tf.concat((v, x), 1)
+                with tf.variable_scope('emb_tgt'): x = dropout(tf.tensordot(x, emb_tgt, 1) + pos[i])
+                with tf.variable_scope('cache_v'): v = tf.concat((v, x), 1)
                 for dec in decode: x = dec(x, v, w, dropout)
                 x = logit(x)
-                y = tf.concat((y, x), 1)
-                x = tf.nn.softmax(x)
+                with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
+                with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
                 return i + 1, x, v, y
-            x = tf.one_hot(tgt[:,:1], dim_tgt) # todo try smoothing
-            y = x[:,1:]
             _, _, _, y = tf.while_loop(
                 lambda i, *_: i < len_tgt
                 , autoreg
-                , (0, x, tf.reshape(y, (tf.shape(y)[0], 0, dim)), y)
+                , (0, x, v, y)
                 , (tf.TensorShape(()), x.shape, tf.TensorShape((None, None, dim)), y.shape)
                 , back_prop= trainable
+                , swap_memory= True
                 , name= 'autoreg')
         return Transformer(len_tgt= len_tgt, output= y, **self)
 
@@ -244,19 +246,17 @@ class Transformer(Record):
         with tf.variable_scope('emb_src_forcing'):
             w = tf.gather(emb_src, src)
             w = dropout(w + position(tf.shape(w)[1]))
-        with tf.variable_scope('encode_forcing'):
-            for enc in encode:
-                w = enc(w, dropout)
         with tf.variable_scope('emb_tgt_forcing'):
             tgt_prob = tf.one_hot(tgt, int(emb_tgt.shape[0])) # todo try smoothing
             x = tf.tensordot(tgt_prob, emb_tgt, 1)
             x = dropout(x + position(tf.shape(x)[1]))
+        with tf.variable_scope('encode_forcing'):
+            for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
                 if self.decode[0].softmax: mask = tf.log(mask)
-            for dec in decode:
-                x = dec(x, x, w, dropout, mask)
+            for dec in decode: x = dec(x, x, w, dropout, mask)
         with tf.variable_scope('logit_forcing'):
             y = logit(x)
         return Transformer(tgt_prob= tgt_prob, output= y, **self)
