@@ -88,7 +88,7 @@ class Forward(Record):
         self.name = name
         with tf.variable_scope(name) as name:
             self.mid = Dense(dim, dim_mid, bias= bias, name= 'mid')
-            self.out = Dense(dim, dim_out, bias= bias, name= 'out')
+            self.out = Dense(dim_mid, dim_out, bias= bias, name= 'out')
 
     def __call__(self, x, activation= None, name= None):
         with tf.variable_scope(name or self.name):

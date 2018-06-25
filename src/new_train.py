@@ -74,11 +74,12 @@ else:
 summ = tf.summary.merge((
     tf.summary.scalar('step_loss', mtrain.loss)
     , tf.summary.scalar('step_acc', mtrain.acc)))
-feed_eval = {mtrain.dropout: 0}
+feed_eval = {mtrain.dropout.rate: 0}
 
 for _ in range(5):
     for _ in tqdm(range(step_save), ncols= 70):
         sess.run(mtrain.up)
+        step = sess.run(mtrain.step)
         if not (step % step_eval):
             wtr.add_summary(sess.run(summ, feed_eval), step)
     # trans("trial/pred/{}_{}".format(step, trial), minfer)

@@ -199,7 +199,7 @@ class Transformer(Record):
         # sinusoidal positional encoding
         if len_cap:
             position = lambda t, dim= dim, sinusoid= tf.constant(
-                sinusoid(len_cap, dim, array= True), tf.float32, scope= 'sinusoid'
+                sinusoid(len_cap, dim, array= True), tf.float32, name= 'sinusoid'
             ): sinusoid[:t]
         else:
             position = lambda t, dim= dim: sinusoid(t, dim)
