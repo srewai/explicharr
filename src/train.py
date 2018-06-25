@@ -28,22 +28,22 @@ assert tgt_train.shape[1] <= len_cap
 assert src_valid.shape[1] <= len_cap
 assert tgt_valid.shape[1] <= len_cap
 
+# # for profiling
+# from util_tf import profile
+# m = Transformer.new().data().autoreg(trainable= False)
+# with tf.Session() as sess:
+#     tf.global_variables_initializer().run()
+#     profile(join(path, "graph"), sess, m.acc
+#             , {m.src: src_train[:batch_size]
+#                , m.tgt: tgt_train[:batch_size,:-1]
+#                , m.gold: tgt_train[:batch_size,1:]})
+
 model = Transformer.new()
 model_train = model.data(*batch((src_train, tgt_train), batch_size), len_cap)
 model_valid = model.data(*batch((src_valid, tgt_valid), batch_size), len_cap)
 forcing_train = model_train.forcing().train()
 autoreg_train = model_train.autoreg().train()
 autoreg_valid = model_valid.autoreg(trainable= False)
-
-# # for profiling
-# m = Transformer.new().autoreg(trainable= True).train()
-# from util_tf import profile
-# with tf.Session() as sess:
-#     tf.global_variables_initializer().run()
-#     profile(join(path, "graph"), sess, m.up
-#             , {m.src: src_train[:batch_size]
-#                , m.tgt: tgt_train[:batch_size,:-1]
-#                , m.gold: tgt_train[:batch_size,1:]})
 
 #############
 # translate #
