@@ -225,23 +225,28 @@ class Transformer(Record):
                 x = tf.one_hot(tgt[:,:1], dim_tgt) # todo try smoothing
                 y = x[:,1:]
                 v = tf.reshape(y, (tf.shape(y)[0], 0, dim))
-            def autoreg(i, x, v, y):
+            def autoreg(i, x, vs, y):
                 # i : ()              time step from 0 to t=len_tgt
                 # x : (b, 1, dim_tgt) prob dist over x_i
                 # v : (b, t, dim)     embeded x
                 # y : (b, t, dim_tgt) logit over x one step ahead
                 with tf.variable_scope('emb_tgt'): x = dropout(tf.tensordot(x, emb_tgt, 1) + pos[i])
-                with tf.variable_scope('cache_v'): v = tf.concat((v, x), 1)
-                for dec in decode: x = dec(x, v, w, dropout)
+                us = []
+                for dec, v in zip(decode, vs):
+                    with tf.variable_scope('cache_v'):
+                        v = tf.concat((v, x), 1)
+                        us.append(v)
+                    x = dec(x, v, w, dropout)
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
-                with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
-                return i + 1, x, v, y
+                # with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
+                with tf.variable_scope('hardmax'): x = tf.one_hot(tf.argmax(x, -1), dim_tgt)
+                return i + 1, x, tuple(us), y
             _, _, _, y = tf.while_loop(
                 lambda i, *_: i < len_tgt # todo stop when end is reached if not trainable
                 , autoreg
-                , (0, x, v, y)
-                , (tf.TensorShape(()), x.shape, tf.TensorShape((None, None, dim)), y.shape)
+                , (0, x, (v,) * len(decode), y)
+                , (tf.TensorShape(()), x.shape, (tf.TensorShape((None, None, dim)),) * len(decode), y.shape)
                 , back_prop= trainable
                 , swap_memory= True
                 , name= 'autoreg')
