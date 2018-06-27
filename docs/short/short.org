@@ -1,0 +1,158 @@
+#+OPTIONS: title:nil date:nil toc:nil author:nil email:nil
+#+STARTUP: beamer
+#+LaTeX_CLASS: beamer
+#+LATEX_HEADER: \setbeamertemplate{footline}[frame number]
+#+LATEX_HEADER: \usepackage{tikz-cd}
+* title
+** explicharr[fn:1]                                                 :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+| Kuan Yu             | kuanyu@uni-potsdam.de        |
+|                     |                              |
+| Maya Angelova       | maya.angelova@protonmail.com |
+|                     |                              |
+| Philipp Schoneville | schoneville@uni-potsdam.de   |
+|                     |                              |
+| Sonu Rauniyar       | rauniyar@uni-potsdam.de      |
+\hfill \today
+* task
+** data[fn:2]                                                       :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+aligned sentences
+- source: standard english wikipedia
+- target: simple english wikipedia
+** character-level modelling                                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+consider only the top 256 characters out of ~3000
+- more robust
+  + rare characters make up only 0.03% of the text
+  + no special treatment for large numbers and named entities
+  + may learn morphology
+- less preprocessing
+- easier applicable to other languages
+** neural network translator                                        :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\begin{align*}
+  S &: \text{source alphabet}\\
+  T &: \text{target alphabet}\\
+  m &: S^{\ast} \to T^{\ast}\\
+    &= S^{\ast} \to T^{\ast}_{0 \ldots i} \to T^{\ast}_{i+1}\\
+    &= T^{\ast}_{0 \ldots i} \xrightarrow{S^{\ast}} T^{\ast}_{i+1}\\
+\end{align*}
+** autoregressive network                                           :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+\[T^{\ast}_{0 \ldots i} \xrightarrow{S^{\ast}} T^{\ast}_{i+1}\]
+\[\begin{tikzcd}
+  T^{\ast}_{0} \ar[bend left]{r} \ar[bend right]{rr} \ar[bend left]{rrr} &T^{\ast}_{1} \ar[bend right]{r} \ar[bend left]{rr} &T^{\ast}_{2} \ar[bend left]{r} &T^{\ast}_{3}\\
+\end{tikzcd}\]
+growing number of arrows means
+- growing number of parameters
+  + parameter sharing (convolution, recurrent, attention)
+- growing number of inputs
+  + limit input field (convolution)
+  + input aggregating (recurrent)
+  + input averaging (attention)
+** transformer[fn:3]                                                :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+all attention
+- no limited input field
+- no information bottleneck
+- no hidden to hidden connection
+  + can be trained with teacher forcing
+  + highly parallelizable
+* status
+** current status                                                   :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+*** done :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- data cleanup
+- model implementation
+*** todo :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- introspection
+- optimization
+** results                                                          :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- ~200k training instances
+- ~2k validation instances
+- ~90% training accuracy (teacher forcing)
+- ~29% blue score (autoregressive)
+** good results                                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+#+BEGIN_EXAMPLE
+source: In fact , they are different things .
+target: These words mean things
+        that are a little different .
+output: They are different things .
+
+source: In more recent years ,
+        he has played a metal saxophone .
+target: Now he plays a metal saxophone .
+output: He has played a metal saxophone .
+
+source: With one huge blow from his olive-wood club ,
+        Hercules killed the watchdog .
+target: Herakles killed her .
+output: Hercules killed the watchdog .
+#+END_EXAMPLE
+** mystery                                                          :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+~88% of output sentences are exact copies of source sentences
+- only when used autoregressively
+- target and source don't share character inventory
+- target and source don't share time steps
+** dual mystery                                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+a deeper model completely ignores the source sentences
+- unable to condition on the source
+- becomes an autoencoder for the target (teacher forcing)
+- always produces the same output (autoregressive)
+** future plan                                                      :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- attention visualization
+  + to solve the mystery
+  + to understand what the model does
+- autoregressive training
+  + training with its own output
+  + backprop through time
+  + mean field approximation
+- encoder pretraining
+  + to solve the dual mystery
+- decoding
+  + beam search
+  + soft predictions
+* Footnotes
+[fn:1] /explicare/: to explain, to unfold; /char/: character; /arr/: array.
+[fn:2] http://ssli.ee.washington.edu/tial/projects/simplification/
+[fn:3] https://arxiv.org/abs/1706.03762
+# local variables:
+# org-beamer-outline-frame-title: "outline"
+# end:
