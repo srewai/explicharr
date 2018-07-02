@@ -1,16 +1,18 @@
 import numpy as np
 
 
-def jagged_array(x, fill, shape, dtype):
-    """-> np.ndarray; with jagged `x` trimmed and filled into `shape`."""
-    a = np.full(shape= shape, dtype= dtype, fill_value= fill)
-    i, *shape = shape
-    if shape:
-        x = np.stack([jagged_array(x, fill, shape, dtype) for x in x])
-    else:
-        x = np.fromiter(x, dtype= dtype)
-    i = min(i, len(x))
-    a[:i] = x[:i]
+def vpack(arrays, fill, offset= 0, extra= 0):
+    """like `np.vstack` but for `arrays` of different lengths in the first
+    axis.  shorter ones will be padded with `fill` at the end.
+    additionally `offset` and `extra` number of columns will be padded
+    at the beginning and the end.
+
+    """
+    if not hasattr(arrays, '__len__'): arrays = list(arrays)
+    arr = arrays[0]
+    a = np.full((len(arrays), offset + max(map(len, arrays)) + extra) + arr.shape[1:], fill, arr.dtype)
+    for row, arr in zip(a, arrays):
+        row[offset:offset+len(arr)] = arr
     return a
 
 
