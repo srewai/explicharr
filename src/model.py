@@ -1,5 +1,5 @@
 from util import Record, identity
-from util_tf import tf, placeholder, Normalize, Dense, Forward, Attention, Dropout, SmoothOnehot
+from util_tf import tf, placeholder, Normalize, Embed, Dense, Forward, Attention, Dropout, Smooth
 import numpy as np
 
 
@@ -47,7 +47,7 @@ class ForwardBlock(Record):
             self.forward = Forward(dim, dim_mid)
             self.normalize = Normalize(dim)
 
-    def __call__(self, x, dropout, act, name= None):
+    def __call__(self, x, act, dropout, name= None):
         with tf.variable_scope(name or self.name):
             return self.normalize(x + dropout(self.forward(x, act)))
 
@@ -67,35 +67,35 @@ class AttentionBlock(Record):
 
 class EncodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, act, softmax, name):
-        self.num_head, self.act, self.softmax = num_head, act, softmax
+    def __init__(self, dim, dim_mid, num_head, softmax, name):
+        self.num_head, self.softmax = num_head, softmax
         with tf.variable_scope(name):
             self.name = name
             self.attention = AttentionBlock(dim, softmax)
             self.forward = ForwardBlock(dim, dim_mid)
 
-    def __call__(self, x, dropout, name= None):
+    def __call__(self, x, act, dropout, name= None):
         with tf.variable_scope(name or self.name):
             x = self.attention(x, x, dropout, self.num_head)
-            x = self.forward(x, dropout, self.act)
+            x = self.forward(x, act, dropout)
         return x
 
 
 class DecodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, act, softmax, name):
-        self.num_head, self.act, self.softmax = num_head, act, softmax
+    def __init__(self, dim, dim_mid, num_head, softmax, name):
+        self.num_head, self.softmax = num_head, softmax
         with tf.variable_scope(name):
             self.name = name
             self.causal = AttentionBlock(dim, softmax, 'causal')
             self.attention = AttentionBlock(dim, softmax)
             self.forward = ForwardBlock(dim, dim_mid)
 
-    def __call__(self, x, v, w, dropout, mask= None, name= None):
+    def __call__(self, x, v, w, act, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
             x = self.causal(x, v, dropout, self.num_head, mask)
             x = self.attention(x, w, dropout, self.num_head)
-            x = self.forward(x, dropout, self.act)
+            x = self.forward(x, act, dropout)
         return x
 
 
@@ -120,48 +120,44 @@ class Transformer(Record):
             , dim_tgt= 256, dim_mid= 512
             , num_layer= 2, num_head= 4
             , softmax= True
-            , act= tf.nn.relu
-            , logit_share_embedding= False
             , smooth= 0.1
             , dropout= 0.1):
         """-> Transformer with fields
 
             end : i32 ()
-        emb_src : f32 (dim_src, dim)
-        emb_tgt : f32 (dim_tgt, dim)
+        emb_src : Embed
+        emb_tgt : ???? todo
          encode : tuple EncodeBlock
          decode : tuple DecodeBlock
-          logit : dim -> dim_tgt
-         smooth : SmoothOnehot
+          logit : Dense
+         smooth : Smooth
         dropout : Dropout
 
         `end` is treated as the padding for both source and target.
 
         """
         assert not dim % 2 and not dim % num_head
-        init = tf.orthogonal_initializer()
-        emb_src = tf.get_variable('emb_src', (dim_src, dim), tf.float32, init)
-        emb_tgt = tf.get_variable('emb_tgt', (dim_tgt, dim), tf.float32, init)
+        emb_src = Embed(dim_src, dim, 'emb_src')
+        # <--experiment
+        # emb_tgt = Embed(dim_tgt, dim, 'emb_tgt')
+        # emb_tgt = Dense(dim_tgt, dim, bias= False, 'emb_tgt')
+        emb_tgt = Forward(dim_tgt, dim_mid, dim, name= 'emb_tgt')
+        # experiment-->
         with tf.variable_scope('encode'):
             encode = tuple(EncodeBlock(
-                dim, dim_mid, num_head, act, softmax, "layer{}".format(i + 1))
+                dim, dim_mid, num_head, softmax, "layer{}".format(i + 1))
                              for i in range(num_layer))
         with tf.variable_scope('decode'):
             decode = tuple(DecodeBlock(
-                dim, dim_mid, num_head, act, softmax, "layer{}".format(i + 1))
+                dim, dim_mid, num_head, softmax, "layer{}".format(i + 1))
                         for i in range(num_layer))
-        if logit_share_embedding:
-            with tf.variable_scope('logit'):
-                def logit(x, w= tf.transpose(emb_tgt)):
-                    with tf.variable_scope('logit'):
-                        return tf.tensordot(x, w, 1)
-        else:
-            logit = Dense(dim, dim_tgt, name= 'logit')
+        logit = Dense(dim, dim_tgt, name= 'logit')
         return Transformer(
-            end= tf.constant(end, tf.int32, (), 'end')
+            dim= dim, dim_tgt= dim_tgt
+            , end= tf.constant(end, tf.int32, (), 'end')
             , emb_src= emb_src, encode= encode
             , emb_tgt= emb_tgt, decode= decode, logit= logit
-            , smooth= SmoothOnehot(smooth, dim_tgt)
+            , smooth= Smooth(smooth, dim_tgt)
             , dropout= Dropout(dropout, (None, 1, dim)))
 
     def data(self, src= None, tgt= None, len_cap= None):
@@ -179,8 +175,7 @@ class Transformer(Record):
         affect any model parameters.
 
         """
-        dim = int(self.emb_tgt.shape[1])
-        end = self.end
+        end, dim = self.end, self.dim
         count_not_all = lambda x: tf.reduce_sum(tf.to_int32(~ tf.reduce_all(x, 0)))
         with tf.variable_scope('src'):
             src = src_ = placeholder(tf.int32, (None, None), src)
@@ -193,10 +188,11 @@ class Transformer(Record):
         return Transformer(
             position= Sinusoid(dim, len_cap)
             , src_= src_, src= src
-            , tgt_= tgt_, tgt= tgt, gold= gold
+            , tgt_= tgt_, tgt= tgt
+            , gold= gold
             , **self)
 
-    def autoreg(self, trainable= True):
+    def autoreg(self, act= tf.nn.relu, trainable= True):
         """-> Transformer with new fields, autoregressive
 
         len_tgt : i32 ()              steps to unfold aka t
@@ -209,20 +205,24 @@ class Transformer(Record):
         must be called after `data`.
 
         """
-        position, logit, dropout = self.position, self.logit, self.dropout if trainable else identity
+        logit, smooth = self.logit, self.smooth
+        position, dropout = self.position, self.dropout if trainable else identity
         src, emb_src, encode = self.src, self.emb_src, self.encode
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
-        dim_tgt, dim = map(int, emb_tgt.shape)
+        dim, dim_tgt = self.dim, self.dim_tgt
         with tf.variable_scope('emb_src_autoreg'):
-            w = tf.gather(emb_src, src)
+            w = emb_src(src)
             w = dropout(w + position(tf.shape(w)[1]))
         with tf.variable_scope('encode_autoreg'):
-            for enc in encode: w = enc(w, dropout)
+            for enc in encode: w = enc(w, act, dropout)
         with tf.variable_scope('decode_autoreg'):
             with tf.variable_scope('init'):
                 len_tgt = tf.shape(tgt)[1]
                 pos = position(len_tgt)
-                x = tf.one_hot(tgt[:,:1], dim_tgt) # todo try smoothing
+                # <--experiment
+                # x = tf.one_hot(tgt[:,:1], dim_tgt)
+                x = smooth(tgt[:,:1])
+                # experiment-->
                 y = x[:,1:]
                 v = tf.reshape(y, (tf.shape(y)[0], 0, dim))
             def autoreg(i, x, vs, y):
@@ -230,29 +230,35 @@ class Transformer(Record):
                 # x : (b, 1, dim_tgt) prob dist over x_i
                 # v : (b, t, dim)     embeded x
                 # y : (b, t, dim_tgt) logit over x one step ahead
-                with tf.variable_scope('emb_tgt'): x = dropout(tf.tensordot(x, emb_tgt, 1) + pos[i])
+                with tf.variable_scope('emb_tgt'):
+                    # <--experiment
+                    # x = dropout(emb_tgt(x) + pos[i]) # Embed or Dense
+                    x = dropout(emb_tgt(x, act) + pos[i]) # Forward
+                    # experiment-->
                 us = []
                 for dec, v in zip(decode, vs):
                     with tf.variable_scope('cache_v'):
                         v = tf.concat((v, x), 1)
                         us.append(v)
-                    x = dec(x, v, w, dropout)
+                    x = dec(x, v, w, act, dropout)
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
-                # with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
-                with tf.variable_scope('hardmax'): x = tf.one_hot(tf.argmax(x, -1), dim_tgt)
+                # <--experiment
+                # with tf.variable_scope('hardmax'): x = tf.one_hot(tf.argmax(x, -1), dim_tgt)
+                with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
+                # experiment-->
                 return i + 1, x, tuple(us), y
             _, _, _, y = tf.while_loop(
                 lambda i, *_: i < len_tgt # todo stop when end is reached if not trainable
                 , autoreg
-                , (0, x, (v,) * len(decode), y)
-                , (tf.TensorShape(()), x.shape, (tf.TensorShape((None, None, dim)),) * len(decode), y.shape)
+                , (0, x, (v,)*len(decode), y)
+                , (tf.TensorShape(()), x.shape, (tf.TensorShape((None, None, dim)),)*len(decode), y.shape)
                 , back_prop= trainable
                 , swap_memory= True
                 , name= 'autoreg')
         return Transformer(len_tgt= len_tgt, output= y, **self)._pred()
 
-    def forcing(self):
+    def forcing(self, act= tf.nn.relu, trainable= True):
         """-> Transformer with new fields, teacher forcing
 
         tgt_prob : f32 (b, t, dim_tgt) soft target feed
@@ -265,23 +271,29 @@ class Transformer(Record):
         must be called after `data`.
 
         """
-        position, logit, dropout = self.position, self.logit, self.dropout
+        logit, smooth = self.logit, self.smooth
+        position, dropout = self.position, self.dropout if trainable else identity
         src, emb_src, encode = self.src, self.emb_src, self.encode
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
+        dim_tgt = self.dim_tgt
         with tf.variable_scope('emb_src_forcing'):
-            w = tf.gather(emb_src, src)
+            w = emb_src(src)
             w = dropout(w + position(tf.shape(w)[1]))
-        with tf.variable_scope('emb_tgt_forcing'):
-            tgt_prob = tf.one_hot(tgt, int(emb_tgt.shape[0])) # todo try smoothing and make tgt_prob optional
-            x = tf.tensordot(tgt_prob, emb_tgt, 1)
-            x = dropout(x + position(tf.shape(x)[1]))
         with tf.variable_scope('encode_forcing'):
-            for enc in encode: w = enc(w, dropout)
+            for enc in encode: w = enc(w, act, dropout)
+        with tf.variable_scope('emb_tgt_forcing'):
+            # <--experiment
+            # tgt_prob = tf.one_hot(tgt, dim_tgt)
+            tgt_prob = smooth(tgt)
+            # x = emb_tgt(tgt_prob) # Embed or Dense
+            x = emb_tgt(tgt_prob, act) # Forward
+            # experiment-->
+            x = dropout(x + position(tf.shape(x)[1]))
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
                 if self.decode[0].softmax: mask = tf.log(mask)
-            for dec in decode: x = dec(x, x, w, dropout, mask)
+            for dec in decode: x = dec(x, x, w, act, dropout, mask)
         with tf.variable_scope('logit_forcing'):
             y = logit(x)
         return Transformer(tgt_prob= tgt_prob, output= y, **self)._pred()
@@ -305,10 +317,10 @@ class Transformer(Record):
           up :        update operation
 
         """
-        dim, loss = int(self.emb_tgt.shape[1]), self.loss
+        dim, loss = self.dim, self.loss
         with tf.variable_scope('lr'):
             s = tf.train.get_or_create_global_step()
             t = tf.to_float(s + 1)
-            lr = placeholder(tf.float32, (), (dim ** -0.5) * tf.minimum(t ** -0.5, t * (warmup ** -1.5)), 'lr')
+            lr = (dim ** -0.5) * tf.minimum(t ** -0.5, t * (warmup ** -1.5))
         up = tf.train.AdamOptimizer(lr, beta1, beta2, epsilon).minimize(loss, s)
         return Transformer(step= s, lr= lr, up= up, **self)
