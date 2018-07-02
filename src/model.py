@@ -1,5 +1,5 @@
 from util import Record, identity
-from util_tf import tf, placeholder, Normalize, Embed, Dense, Forward, Attention, Dropout, Smooth
+from util_tf import tf, placeholder, Normalize, Embed, Dense, Forward, BiForward, Attention, Dropout, Smooth
 import numpy as np
 
 
@@ -52,6 +52,19 @@ class ForwardBlock(Record):
             return self.normalize(x + dropout(self.forward(x, act)))
 
 
+class BiForwardBlock(Record):
+
+    def __init__(self, dim, dim_mid, name= 'forward'):
+        with tf.variable_scope(name):
+            self.name = name
+            self.forward = BiForward(dim, dim_mid)
+            self.normalize = Normalize(dim)
+
+    def __call__(self, x, xx, act, dropout, name= None):
+        with tf.variable_scope(name or self.name):
+            return self.normalize(x + dropout(self.forward(x, xx, act)))
+
+
 class AttentionBlock(Record):
 
     def __init__(self, dim, softmax, name= 'attention'):
@@ -81,6 +94,7 @@ class EncodeBlock(Record):
         return x
 
 
+# original transformer decoder block
 class DecodeBlock(Record):
 
     def __init__(self, dim, dim_mid, num_head, softmax, name):
@@ -97,6 +111,44 @@ class DecodeBlock(Record):
             x = self.attention(x, w, dropout, self.num_head)
             x = self.forward(x, act, dropout)
         return x
+
+
+# concatenated attention decoder block
+class DecodeBlock2(Record):
+
+    def __init__(self, dim, dim_mid, num_head, softmax, name):
+        self.num_head, self.softmax = num_head, softmax
+        with tf.variable_scope(name):
+            self.name = name
+            self.causal = AttentionBlock(dim, softmax, 'causal')
+            self.attention = AttentionBlock(dim, softmax)
+            self.forward = BiForwardBlock(dim, dim_mid)
+
+    def __call__(self, x, v, w, act, dropout, mask= None, name= None):
+        with tf.variable_scope(name or self.name):
+            return self.forward(
+                self.attention(x, w, dropout, self.num_head)
+                ,  self.causal(x, v, dropout, self.num_head, mask)
+                , act, dropout)
+
+
+# parallel attention decoder block
+class DecodeBlock3(Record):
+
+    def __init__(self, dim, dim_mid, num_head, softmax, name):
+        self.num_head, self.softmax = num_head, softmax
+        with tf.variable_scope(name):
+            self.name = name
+            self.causal = AttentionBlock(dim, softmax, 'causal')
+            self.attention = AttentionBlock(dim, softmax)
+            self.forward = ForwardBlock(dim, dim_mid)
+
+    def __call__(self, x, v, w, act, dropout, mask= None, name= None):
+        with tf.variable_scope(name or self.name):
+            return self.forward(
+                self.attention(x, w, dropout, self.num_head)
+                +  self.causal(x, v, dropout, self.num_head, mask)
+                , act, dropout)
 
 
 class Transformer(Record):
@@ -232,7 +284,8 @@ class Transformer(Record):
                 # y : (b, t, dim_tgt) logit over x one step ahead
                 with tf.variable_scope('emb_tgt'):
                     # <--experiment
-                    # x = dropout(emb_tgt(x) + pos[i]) # Embed or Dense
+                    # x = dropout(tf.tensordot(x, emb_tgt.kern, 1) + pos[i]) # Embed
+                    # x = dropout(emb_tgt(x) + pos[i]) # Dense
                     x = dropout(emb_tgt(x, act) + pos[i]) # Forward
                     # experiment-->
                 us = []
@@ -285,7 +338,8 @@ class Transformer(Record):
             # <--experiment
             # tgt_prob = tf.one_hot(tgt, dim_tgt)
             tgt_prob = smooth(tgt)
-            # x = emb_tgt(tgt_prob) # Embed or Dense
+            # x = tf.tensordot(tgt_prob, emb_tgt.kern, 1) # Embed
+            # x = emb_tgt(tgt_prob) # Dense
             x = emb_tgt(tgt_prob, act) # Forward
             # experiment-->
             x = dropout(x + position(tf.shape(x)[1]))

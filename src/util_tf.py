@@ -103,6 +103,23 @@ class Forward(Record):
             return self.out(self.mid(x, act))
 
 
+class BiForward(Record):
+
+    def __init__(self, dim, dim_mid= None, dim_out= None, djm= None, bias= True, name= 'forward'):
+        if djm is None: djm = dim
+        if dim_mid is None: dim_mid = dim
+        if dim_out is None: dim_out = dim
+        with tf.variable_scope(name):
+            self.name = name
+            self.mid = Dense(dim, dim_mid, bias= bias, name= 'mid')
+            self.mjd = Dense(djm, dim_mid, bias= bias, name= 'mjd')
+            self.out = Dense(dim_mid, dim_out, bias= bias, name= 'out')
+
+    def __call__(self, x, xx, act= None, name= None):
+        with tf.variable_scope(name or self.name):
+            return self.out(self.mid(x, act) + self.mjd(xx, act))
+
+
 class Attention(Record):
     """computes multi-head attention from `query` and `value` tensors.
 
