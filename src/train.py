@@ -73,7 +73,7 @@ autoreg_train = model_train.autoreg().train(warmup= epoch)
 # training #
 ############
 
-saver = tf.train.Saver()
+saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
 wtr = tf.summary.FileWriter(join(logdir, "trial{}".format(trial)))
 
@@ -99,4 +99,4 @@ while True:
         step = sess.run(forcing_train.step)
         if not step % step_eval: wtr.add_summary(sess.run(summ), step)
     saver.save(sess, "trial/model/{}_{}".format(trial, step), write_meta_graph= False)
-    trans("trial/pred/{}_{}".format(step, trial))
+    trans("trial/pred/{}_{}".format(trial, step))
