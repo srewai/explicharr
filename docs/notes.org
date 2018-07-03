@@ -3,3 +3,41 @@
 - "\xa0" non-breaking space, for unknown char
 - "\x0a" newline, for end of sequence
 - "\x20" space, for token boundry
+
+* data
+
+284677 sentence pairs
+
+|            |   source |   target |
+|------------+----------+----------|
+| #word      |  7400555 |  5634887 |
+| #word-type |   212292 |   165170 |
+| #hapax     |   109988 |    82487 |
+| #char      | 40242640 | 29680984 |
+| #char-type |     2880 |     2359 |
+| %top255    |    99.97 |    99.97 |
+
+source
+
+|      | min |  max |   mean |
+|------+-----+------+--------|
+| word |   1 |  478 |  26.00 |
+| char |   4 | 2406 | 141.36 |
+
+target
+
+|      | min |  max |   mean |
+|------+-----+------+--------|
+| word |   1 |  442 |  19.79 |
+| char |   4 | 2219 | 104.26 |
+
+some sentences are unnecessarily long
+
+|  cap | source | target |
+|------+--------+--------|
+|  128 |  50.58 |  74.66 |
+|  256 |  93.20 |  97.98 |
+|  512 |  99.78 |  99.94 |
+| 1024 |  99.99 |  99.99 |
+|------+--------+--------|
+|  max |   2406 |   2218 |
