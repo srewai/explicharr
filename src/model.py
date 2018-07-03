@@ -245,7 +245,7 @@ class Transformer(Record):
             , gold= gold
             , **self)
 
-    def autoreg(self, act= tf.nn.relu, trainable= True):
+    def autoreg(self, act= tf.nn.relu, trainable= True, random= False):
         """-> Transformer with new fields, autoregressive
 
         len_tgt : i32 ()              steps to unfold aka t
@@ -272,6 +272,7 @@ class Transformer(Record):
             with tf.variable_scope('init'):
                 len_tgt = tf.shape(tgt)[1]
                 pos = position(len_tgt)
+                i = tf.constant(0)
                 # <--experiment
                 x = tgt[:,:1] # Embed
                 # x = tf.one_hot(tgt[:,:1], dim_tgt) # hard
@@ -279,11 +280,13 @@ class Transformer(Record):
                 # experiment-->
                 v = w[:,:0]
                 y = tf.reshape(v, (tf.shape(v)[0], 0, dim_tgt))
-            def autoreg(i, x, vs, y):
+                p = x[:,1:]
+            def autoreg(i, x, vs, y, p):
                 # i : ()              time step from 0 to t=len_tgt
-                # x : (b, 1, dim_tgt) prob dist over x_i
-                # v : (b, t, dim)     embeded x
+                # x : (b, 1|,dim_tgt) x_i
+                # v : (b, t, dim)     attention values
                 # y : (b, t, dim_tgt) logit over x one step ahead
+                # p : (b, t|,dim_tgt) predictions
                 with tf.variable_scope('emb_tgt'):
                     # <--experiment
                     x = dropout(emb_tgt(x) + pos[i]) # Embed or Dense
@@ -298,19 +301,26 @@ class Transformer(Record):
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
                 # <--experiment
-                with tf.variable_scope('hardmax'): x = tf.argmax(x, -1, output_type= tf.int32) # Embed
+                # Embed
+                if random:
+                    with tf.variable_scope('sample'):
+                        x = tf.expand_dims(tf.multinomial(tf.squeeze(x, 1), 1), 1)
+                else:
+                    with tf.variable_scope('argmax'):
+                        x = tf.argmax(x, -1, output_type= tf.int32)
                 # with tf.variable_scope('softmax'): x = tf.nn.softmax(x) # Dense or Forward
                 # experiment-->
-                return i + 1, x, tuple(us), y
-            _, _, _, y = tf.while_loop(
+                with tf.variable_scope('cache_p'): p = tf.concat((p, x), 1)
+                return i + 1, x, tuple(us), y, p
+            _, _, _, y, p = tf.while_loop(
                 lambda i, *_: i < len_tgt # todo stop when end is reached if not trainable
                 , autoreg
-                , (0, x, (v,)*len(decode), y)
-                , (tf.TensorShape(()), x.shape, (v.shape,)*len(decode), tf.TensorShape((None, None, dim_tgt)))
+                , (i, x, (v,)*len(decode), y, p)
+                , (i.shape, x.shape, (v.shape,)*len(decode), tf.TensorShape((None, None, dim_tgt)), p.shape)
                 , back_prop= trainable
                 , swap_memory= True
                 , name= 'autoreg')
-        return Transformer(len_tgt= len_tgt, output= y, **self)._pred()
+        return Transformer(len_tgt= len_tgt, output= y, pred= p, **self)._eval()
 
     def forcing(self, act= tf.nn.relu, trainable= True):
         """-> Transformer with new fields, teacher forcing
@@ -348,20 +358,17 @@ class Transformer(Record):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
                 if self.decode[0].softmax: mask = tf.log(mask)
             for dec in decode: x = dec(x, x, w, act, dropout, mask)
-        with tf.variable_scope('logit_forcing'):
-            y = logit(x)
-        return Transformer(tgt_prob= tgt_prob, output= y, **self)._pred()
+        y = logit(x)
+        p = tf.argmax(y, -1, output_type= tf.int32, name= 'pred')
+        return Transformer(tgt_prob= tgt_prob, output= y, pred= p, **self)._eval()
 
-    def _pred(self):
-        gold, output, smooth = self.gold, self.output, self.smooth
-        with tf.variable_scope('pred'):
-            prob = tf.nn.softmax(output)
-            pred = tf.argmax(output, -1, output_type= tf.int32)
-        with tf.variable_scope('loss'):
-            loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits= output, labels= smooth(gold)))
+    def _eval(self):
+        gold, pred, output, smooth = self.gold, self.pred, self.output, self.smooth
         with tf.variable_scope('acc'):
             acc = tf.reduce_mean(tf.to_float(tf.equal(gold, pred)))
-        return Transformer(prob= prob, pred= pred, loss= loss, acc= acc, **self)
+        with tf.variable_scope('loss'):
+            loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits= output, labels= smooth(gold)))
+        return Transformer(prob= tf.nn.softmax(output, name= 'prob'), loss= loss, acc= acc, **self)
 
     def train(self, warmup= 4e3, beta1= 0.9, beta2= 0.98, epsilon= 1e-9):
         """-> Transformer with new fields
