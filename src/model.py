@@ -168,6 +168,7 @@ class Transformer(Record):
 
     @staticmethod
     def new(end= 1
+            , DecodeBlock= DecodeBlock
             , dim_src= 256, dim= 256
             , dim_tgt= 256, dim_mid= 512
             , num_layer= 2, num_head= 4
@@ -191,9 +192,9 @@ class Transformer(Record):
         assert not dim % 2 and not dim % num_head
         emb_src = Embed(dim_src, dim, 'emb_src')
         # <--experiment
-        # emb_tgt = Embed(dim_tgt, dim, 'emb_tgt')
+        emb_tgt = Embed(dim_tgt, dim, 'emb_tgt')
         # emb_tgt = Dense(dim_tgt, dim, bias= False, 'emb_tgt')
-        emb_tgt = Forward(dim_tgt, dim_mid, dim, name= 'emb_tgt')
+        # emb_tgt = Forward(dim_tgt, dim_mid, dim, name= 'emb_tgt')
         # experiment-->
         with tf.variable_scope('encode'):
             encode = tuple(EncodeBlock(
@@ -272,11 +273,12 @@ class Transformer(Record):
                 len_tgt = tf.shape(tgt)[1]
                 pos = position(len_tgt)
                 # <--experiment
-                # x = tf.one_hot(tgt[:,:1], dim_tgt)
-                x = smooth(tgt[:,:1])
+                x = tgt[:,:1] # Embed
+                # x = tf.one_hot(tgt[:,:1], dim_tgt) # hard
+                # x = smooth(tgt[:,:1]) # soft
                 # experiment-->
-                y = x[:,1:]
-                v = tf.reshape(y, (tf.shape(y)[0], 0, dim))
+                v = w[:,:0]
+                y = tf.reshape(v, (tf.shape(v)[0], 0, dim_tgt))
             def autoreg(i, x, vs, y):
                 # i : ()              time step from 0 to t=len_tgt
                 # x : (b, 1, dim_tgt) prob dist over x_i
@@ -284,9 +286,8 @@ class Transformer(Record):
                 # y : (b, t, dim_tgt) logit over x one step ahead
                 with tf.variable_scope('emb_tgt'):
                     # <--experiment
-                    # x = dropout(tf.tensordot(x, emb_tgt.kern, 1) + pos[i]) # Embed
-                    # x = dropout(emb_tgt(x) + pos[i]) # Dense
-                    x = dropout(emb_tgt(x, act) + pos[i]) # Forward
+                    x = dropout(emb_tgt(x) + pos[i]) # Embed or Dense
+                    # x = dropout(emb_tgt(x, act) + pos[i]) # Forward
                     # experiment-->
                 us = []
                 for dec, v in zip(decode, vs):
@@ -297,15 +298,15 @@ class Transformer(Record):
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
                 # <--experiment
-                # with tf.variable_scope('hardmax'): x = tf.one_hot(tf.argmax(x, -1), dim_tgt)
-                with tf.variable_scope('softmax'): x = tf.nn.softmax(x)
+                with tf.variable_scope('hardmax'): x = tf.argmax(x, -1, output_type= tf.int32) # Embed
+                # with tf.variable_scope('softmax'): x = tf.nn.softmax(x) # Dense or Forward
                 # experiment-->
                 return i + 1, x, tuple(us), y
             _, _, _, y = tf.while_loop(
                 lambda i, *_: i < len_tgt # todo stop when end is reached if not trainable
                 , autoreg
                 , (0, x, (v,)*len(decode), y)
-                , (tf.TensorShape(()), x.shape, (tf.TensorShape((None, None, dim)),)*len(decode), y.shape)
+                , (tf.TensorShape(()), x.shape, (v.shape,)*len(decode), tf.TensorShape((None, None, dim_tgt)))
                 , back_prop= trainable
                 , swap_memory= True
                 , name= 'autoreg')
@@ -336,11 +337,10 @@ class Transformer(Record):
             for enc in encode: w = enc(w, act, dropout)
         with tf.variable_scope('emb_tgt_forcing'):
             # <--experiment
-            # tgt_prob = tf.one_hot(tgt, dim_tgt)
-            tgt_prob = smooth(tgt)
-            # x = tf.tensordot(tgt_prob, emb_tgt.kern, 1) # Embed
+            x = emb_tgt(tgt) # Embed
+            tgt_prob = smooth(tgt) # Dense or Forward
             # x = emb_tgt(tgt_prob) # Dense
-            x = emb_tgt(tgt_prob, act) # Forward
+            # x = emb_tgt(tgt_prob, act) # Forward
             # experiment-->
             x = dropout(x + position(tf.shape(x)[1]))
         with tf.variable_scope('decode_forcing'):
@@ -356,7 +356,7 @@ class Transformer(Record):
         gold, output, smooth = self.gold, self.output, self.smooth
         with tf.variable_scope('pred'):
             prob = tf.nn.softmax(output)
-            pred = tf.to_int32(tf.argmax(output, -1))
+            pred = tf.argmax(output, -1, output_type= tf.int32)
         with tf.variable_scope('loss'):
             loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits= output, labels= smooth(gold)))
         with tf.variable_scope('acc'):
