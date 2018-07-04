@@ -1,5 +1,6 @@
 from util import Record, identity
-from util_tf import tf, placeholder, Normalize, Embed, Dense, Forward, BiForward, Attention, Dropout, Smooth
+from util_tf import tf, placeholder, Normalize, Embed, Dense, Forward, BiForward, Dropout, Smooth
+from util_tf import Attention as Attention
 import numpy as np
 
 
@@ -67,10 +68,10 @@ class BiForwardBlock(Record):
 
 class AttentionBlock(Record):
 
-    def __init__(self, dim, softmax, name= 'attention'):
+    def __init__(self, dim, name= 'attention'):
         with tf.variable_scope(name):
             self.name = name
-            self.attention = Attention(dim, softmax= softmax)
+            self.attention = Attention(dim)
             self.normalize = Normalize(dim)
 
     def __call__(self, x, value, dropout, num_head, mask= None, name= None):
@@ -80,11 +81,11 @@ class AttentionBlock(Record):
 
 class EncodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, softmax, name):
-        self.num_head, self.softmax = num_head, softmax
+    def __init__(self, dim, dim_mid, num_head, name):
+        self.num_head = num_head
         with tf.variable_scope(name):
             self.name = name
-            self.attention = AttentionBlock(dim, softmax)
+            self.attention = AttentionBlock(dim)
             self.forward = ForwardBlock(dim, dim_mid)
 
     def __call__(self, x, act, dropout, name= None):
@@ -94,12 +95,12 @@ class EncodeBlock(Record):
 
 class DecodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, softmax, name):
-        self.num_head, self.softmax = num_head, softmax
+    def __init__(self, dim, dim_mid, num_head, name):
+        self.num_head = num_head
         with tf.variable_scope(name):
             self.name = name
-            self.causal_attn = AttentionBlock(dim, softmax, 'causal_attn')
-            self.attention = AttentionBlock(dim, softmax)
+            self.causal_attn = AttentionBlock(dim, 'causal_attn')
+            self.attention = AttentionBlock(dim)
             self.forward = BiForwardBlock(dim, dim_mid)
 
     def __call__(self, x, v, w, act, dropout, mask= None, name= None):
@@ -112,12 +113,12 @@ class DecodeBlock(Record):
 
 # # original transformer
 # class DecodeBlock(Record):
-#     def __init__(self, dim, dim_mid, num_head, softmax, name):
-#         self.num_head, self.softmax = num_head, softmax
+#     def __init__(self, dim, dim_mid, num_head, name):
+#         self.num_head = num_head
 #         with tf.variable_scope(name):
 #             self.name = name
-#             self.causal = AttentionBlock(dim, softmax, 'causal')
-#             self.attention = AttentionBlock(dim, softmax)
+#             self.causal = AttentionBlock(dim, 'causal')
+#             self.attention = AttentionBlock(dim)
 #             self.forward = ForwardBlock(dim, dim_mid)
 #     def __call__(self, x, v, w, act, dropout, mask= None, name= None):
 #         with tf.variable_scope(name or self.name):
@@ -147,7 +148,6 @@ class Transformer(Record):
             , dim_src= 256, dim= 256
             , dim_tgt= 256, dim_mid= 512
             , num_layer= 2, num_head= 4
-            , softmax= True
             , smooth= 0.1
             , dropout= 0.1):
         """-> Transformer with fields
@@ -173,11 +173,11 @@ class Transformer(Record):
         # experiment-->
         with tf.variable_scope('encode'):
             encode = tuple(EncodeBlock(
-                dim, dim_mid, num_head, softmax, "layer{}".format(i + 1))
+                dim, dim_mid, num_head, "layer{}".format(i + 1))
                              for i in range(num_layer))
         with tf.variable_scope('decode'):
             decode = tuple(DecodeBlock(
-                dim, dim_mid, num_head, softmax, "layer{}".format(i + 1))
+                dim, dim_mid, num_head, "layer{}".format(i + 1))
                         for i in range(num_layer))
         logit = Dense(dim, dim_tgt, name= 'logit')
         return Transformer(
@@ -281,9 +281,8 @@ class Transformer(Record):
                     with tf.variable_scope('sample'):
                         x = tf.expand_dims(tf.multinomial(tf.squeeze(x, 1), 1), 1)
                 else:
-                    with tf.variable_scope('argmax'):
-                        x = tf.argmax(x, -1, output_type= tf.int32)
-                # with tf.variable_scope('softmax'): x = tf.nn.softmax(x) # Dense or Forward
+                    x = tf.argmax(x, -1, output_type= tf.int32, name= 'argmax')
+                # x = tf.nn.softmax(x, name= 'softmax') # Dense or Forward
                 # experiment-->
                 with tf.variable_scope('cache_p'): p = tf.concat((p, x), 1)
                 return i + 1, x, tuple(us), y, p
@@ -331,7 +330,6 @@ class Transformer(Record):
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
-                if self.decode[0].softmax: mask = tf.log(mask)
             for dec in decode: x = dec(x, x, w, act, dropout, mask)
         y = logit(x)
         p = tf.argmax(y, -1, output_type= tf.int32, name= 'pred')

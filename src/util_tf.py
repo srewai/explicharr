@@ -133,46 +133,93 @@ class Attention(Record):
 
     """
 
-    def __init__(self, dim, dim_q= None, dim_v= None, softmax= True, name= 'attention'):
+    def __init__(self, dim, dim_q= None, dim_v= None, name= 'attention'):
         if dim_q is None: dim_q = dim
         if dim_v is None: dim_v = dim
-        self.dim, self.softmax = dim, softmax
+        self.dim = dim
         with tf.variable_scope(name):
             self.name = name
             self.q = Dense(dim_q, dim, bias= False, name= 'q')
-            if softmax:
-                self.v = Dense(dim_v, dim, bias= False, name= 'v')
-                self.k = Dense(dim_v, dim, bias= False, name= 'k')
+            self.k = Dense(dim_v, dim, bias= False, name= 'k')
+            self.v = Dense(dim_v, dim, bias= False, name= 'v')
 
     def __call__(self, query, value, num_head= 1, mask= None, name= None):
+        # btq -> bsv -> btd
         assert not self.dim % num_head
-        if 1 < num_head:
-            stack_split = lambda x: tf.stack(tf.split(x, num_head, -1))
-        else:
-            stack_split = identity
-        # v : h,b,s,d
-        # k : h,b,s,d
-        # q : h,b,t,d
-        # a : h,b,t,s
+        stack_split = lambda x: tf.stack(tf.split(x, num_head, -1)) # btd -> hbtc
         with tf.variable_scope(name or self.name):
-            q = stack_split(self.q(query))
-            if self.softmax:
-                v = stack_split(self.v(value))
-                k = stack_split(self.k(value))
-                a = tf.matmul(q, k, transpose_b= True)
-                a *= (self.dim ** -0.5)
-                if mask is not None: a += mask
-                a = tf.nn.softmax(a)
-            else:
-                v = k = stack_split(value)
-                a = tf.matmul(q, k, transpose_b= True)
-                if mask is not None: a *= mask
-                a = tf.square(a)
-                a /= tf.reduce_sum(a, -1, True) + 1e-8
-            x = a @ v
-            if 1 < num_head:
-                x = tf.concat(tf.unstack(x), -1)
-        return x
+            # hbts <- (hbtc <- btd <- btq) @ (hbcs <- hbsc <- btd <- btv)
+            a = tf.matmul(stack_split(self.q(query)), stack_split(self.k(value)), transpose_b= True)
+            a *= (self.dim // num_head) ** -0.5
+            if mask is not None: a += tf.log(mask)
+            a = tf.nn.softmax(a)
+            # btd <- hbtc <- hbts @ (hbsc <- bsd <- bsv)
+        return tf.concat(tf.unstack(a @ stack_split(self.v(value))), -1)
+
+
+class SquareAttention(Record):
+
+    def __init__(self, dim, dim_q= None, dim_v= None, name= 'attention'):
+        if dim_q is None: dim_q = dim
+        if dim_v is None: dim_v = dim
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = Dense(dim_q, dim, bias= False, name= 'q')
+            self.k = Dense(dim_v, dim, bias= False, name= 'k')
+            self.v = Dense(dim_v, dim, bias= False, name= 'v')
+
+    # todo remove num_head
+    def __call__(self, query, value, num_head= 1, mask= None, name= None):
+        # btq -> bsv -> btd
+        with tf.variable_scope(name or self.name):
+            # bts <- (btd <- btq) @ (bsd <- bsv)
+            a = tf.matmul(self.q(query), self.k(value), transpose_b= True)
+            if mask is not None: a *= mask
+            a = tf.square(a)
+            a /= tf.reduce_sum(a, -1, True) + 1e-8
+        return a @ self.v(value) # btd <- bts @ (bsd <- bsv)
+
+
+class SimpleSquareAttention(Record):
+
+    def __init__(self, dim, dim_q= None, name= 'attention'):
+        if dim_q is None: dim_q = dim
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = Dense(dim_q, dim, bias= False, name= 'q')
+
+    # todo remove num_head
+    def __call__(self, query, value, num_head= 1, mask= None, name= None):
+        # btq -> bsd -> btd
+        with tf.variable_scope(name or self.name):
+            # bts <- (btd <- btq) @ (bds <- bsd)
+            a = tf.matmul(self.q(query), value, transpose_b= True)
+            if mask is not None: a *= mask
+            a = tf.square(a)
+            a /= tf.reduce_sum(a, -1, True) + 1e-8
+        return a @ value # btd <- bts @ bsd
+
+
+class AdditiveAttention(Record):
+
+    def __init__(self, dim, dim_q= None, name= 'attention'):
+        if dim_q is None: dim_q = dim
+        self.dim = dim
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = Dense(dim_q, dim, name= 'q')
+            self.v = Dense(dim, dim, name= 'v')
+            self.k = Dense(dim, 1, name= 'k')
+
+    # todo remove num_head
+    def __call__(self, query, value, num_head= 1, mask= None, act= tf.nn.relu, name= None):
+        # btq -> bsd -> btd
+        with tf.variable_scope(name or self.name):
+            # bts <- bts1 <- btsd <- (bt1d <- btq) + (b1sd <- bsd)
+            a = tf.squeeze(self.k(tf.expand_dims(self.q(query), 2) + tf.expand_dims(self.v(value), 1), act), -1)
+            if mask is not None: a += tf.log(mask)
+            a = tf.nn.softmax(a)
+        return a @ value # btd <- bts @ bsd
 
 
 class Dropout(Record):
