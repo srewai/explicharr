@@ -89,66 +89,42 @@ class EncodeBlock(Record):
 
     def __call__(self, x, act, dropout, name= None):
         with tf.variable_scope(name or self.name):
-            x = self.attention(x, x, dropout, self.num_head)
-            x = self.forward(x, act, dropout)
-        return x
+            return self.forward(self.attention(x, x, dropout, self.num_head), act, dropout)
 
 
-# original transformer decoder block
 class DecodeBlock(Record):
 
     def __init__(self, dim, dim_mid, num_head, softmax, name):
         self.num_head, self.softmax = num_head, softmax
         with tf.variable_scope(name):
             self.name = name
-            self.causal = AttentionBlock(dim, softmax, 'causal')
-            self.attention = AttentionBlock(dim, softmax)
-            self.forward = ForwardBlock(dim, dim_mid)
-
-    def __call__(self, x, v, w, act, dropout, mask= None, name= None):
-        with tf.variable_scope(name or self.name):
-            x = self.causal(x, v, dropout, self.num_head, mask)
-            x = self.attention(x, w, dropout, self.num_head)
-            x = self.forward(x, act, dropout)
-        return x
-
-
-# concatenated attention decoder block
-class DecodeBlock2(Record):
-
-    def __init__(self, dim, dim_mid, num_head, softmax, name):
-        self.num_head, self.softmax = num_head, softmax
-        with tf.variable_scope(name):
-            self.name = name
-            self.causal = AttentionBlock(dim, softmax, 'causal')
+            self.causal_attn = AttentionBlock(dim, softmax, 'causal_attn')
             self.attention = AttentionBlock(dim, softmax)
             self.forward = BiForwardBlock(dim, dim_mid)
 
     def __call__(self, x, v, w, act, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
             return self.forward(
-                self.attention(x, w, dropout, self.num_head)
-                ,  self.causal(x, v, dropout, self.num_head, mask)
+                self.causal_attn(x, v, dropout, self.num_head, mask)
+                , self.attention(x, w, dropout, self.num_head)
                 , act, dropout)
 
 
-# parallel attention decoder block
-class DecodeBlock3(Record):
-
-    def __init__(self, dim, dim_mid, num_head, softmax, name):
-        self.num_head, self.softmax = num_head, softmax
-        with tf.variable_scope(name):
-            self.name = name
-            self.causal = AttentionBlock(dim, softmax, 'causal')
-            self.attention = AttentionBlock(dim, softmax)
-            self.forward = ForwardBlock(dim, dim_mid)
-
-    def __call__(self, x, v, w, act, dropout, mask= None, name= None):
-        with tf.variable_scope(name or self.name):
-            return self.forward(
-                self.attention(x, w, dropout, self.num_head)
-                +  self.causal(x, v, dropout, self.num_head, mask)
-                , act, dropout)
+# # original transformer
+# class DecodeBlock(Record):
+#     def __init__(self, dim, dim_mid, num_head, softmax, name):
+#         self.num_head, self.softmax = num_head, softmax
+#         with tf.variable_scope(name):
+#             self.name = name
+#             self.causal = AttentionBlock(dim, softmax, 'causal')
+#             self.attention = AttentionBlock(dim, softmax)
+#             self.forward = ForwardBlock(dim, dim_mid)
+#     def __call__(self, x, v, w, act, dropout, mask= None, name= None):
+#         with tf.variable_scope(name or self.name):
+#             x = self.causal(x, v, dropout, self.num_head, mask)
+#             x = self.attention(x, w, dropout, self.num_head)
+#             x = self.forward(x, act, dropout)
+#         return x
 
 
 class Transformer(Record):
@@ -168,7 +144,6 @@ class Transformer(Record):
 
     @staticmethod
     def new(end= 1
-            , DecodeBlock= DecodeBlock
             , dim_src= 256, dim= 256
             , dim_tgt= 256, dim_mid= 512
             , num_layer= 2, num_head= 4
