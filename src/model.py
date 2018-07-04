@@ -1,5 +1,5 @@
 from util import Record, identity
-from util_tf import tf, placeholder, Normalize, Linear, Affine, Forward, BiForward, Maxout, Dropout, Smooth
+from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Maxout, Linear, Affine, Forward, BiForward
 from util_tf import Attention as Attention
 import numpy as np
 
@@ -143,7 +143,7 @@ class Transformer(Record):
             , dim_tgt= 256, dim_mid= 512
             , num_layer= 2, num_head= 4
             , logit_share_embedding= False
-            , act= tf.nn.relu
+            , act= Maxout(2)
             , smooth= 0.1
             , dropout= 0.1):
         """-> Transformer with fields

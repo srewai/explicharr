@@ -290,13 +290,12 @@ class AdditiveAttention(Record):
 
     def __init__(self, dim, dim_q= None, num_head= None, act= Maxout(2), name= 'attention'):
         if dim_q is None: dim_q = dim
-        if isinstance(act, Maxout):
-            assert not dim % act.k
-            dim //= act.k
+        if isinstance(act, Maxout): assert not dim % act.k
         self.act = act
         with tf.variable_scope(name):
             self.name = name
             self.q = BiAffine(dim, dim_q, dim, 'q')
+            if isinstance(act, Maxout): dim //= act.k
             self.k = Affine(1, dim, 'k')
 
     def __call__(self, query, value, mask= None, name= None):
