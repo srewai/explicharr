@@ -334,7 +334,9 @@ class Transformer(Record):
             acc = tf.reduce_mean(tf.to_float(tf.equal(gold, pred)))
         with tf.variable_scope('loss'):
             loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits= output, labels= smooth(gold)))
-        return Transformer(prob= tf.nn.softmax(output, name= 'prob'), loss= loss, acc= acc, **self)
+        with tf.variable_scope('prob'):
+            prob = tf.nn.softmax(output, name= 'prob')
+        return Transformer(prob= prob, loss= loss, acc= acc, **self)
 
     def train(self, warmup= 4e3, beta1= 0.9, beta2= 0.98, epsilon= 1e-9):
         """-> Transformer with new fields
