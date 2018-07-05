@@ -1,6 +1,6 @@
 from util import Record, identity
 from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward, BiForward
-from util_tf import Attention as Attention
+from util_tf import SquareAttention as Attention
 import numpy as np
 
 
@@ -273,7 +273,7 @@ class Transformer(Record):
                 # Linear
                 if random:
                     with tf.variable_scope('sample'):
-                        x = tf.expand_dims(tf.multinomial(tf.squeeze(x, 1), 1), 1)
+                        x = tf.multinomial(tf.squeeze(x, 1), 1, output_dtype= tf.int32)
                 else:
                     x = tf.argmax(x, -1, output_type= tf.int32, name= 'argmax')
                 # x = tf.nn.softmax(x, name= 'softmax') # Forward
