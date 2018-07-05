@@ -267,19 +267,37 @@ class SquareAttention(Record):
         return a @ self.v(value) # btd <- bts @ (bsd <- bsv)
 
 
-class SimpleSquareAttention(Record):
+class QuerySquareAttention(Record):
 
     def __init__(self, dim, dim_q= None, num_head= None, name= 'attention'):
         if dim_q is None: dim_q = dim
         with tf.variable_scope(name):
             self.name = name
-            self.q = Affine(dim_q, dim, 'q')
+            self.q = Affine(dim, dim_q, 'q')
 
     def __call__(self, query, value, mask= None, name= None):
         # btq -> bsd -> btd
         with tf.variable_scope(name or self.name):
             # bts <- (btd <- btq) @ (bds <- bsd)
             a = tf.matmul(self.q(query), value, transpose_b= True)
+            if mask is not None: a *= mask
+            a = tf.square(a)
+            a /= tf.reduce_sum(a, -1, True) + 1e-8
+        return a @ value # btd <- bts @ bsd
+
+
+class KeySquareAttention(Record):
+
+    def __init__(self, dim, num_head= None, name= 'attention'):
+        with tf.variable_scope(name):
+            self.name = name
+            self.k = Affine(dim, dim, 'k')
+
+    def __call__(self, query, value, mask= None, name= None):
+        # btd -> bsd -> btd
+        with tf.variable_scope(name or self.name):
+            # bts <- btd @ (bds <- bsd)
+            a = tf.matmul(query, self.k(value), transpose_b= True)
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
