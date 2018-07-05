@@ -241,8 +241,8 @@ class Attention(Record):
             a *= (self.dim // self.num_head) ** -0.5
             if mask is not None: a += tf.log(mask)
             a = tf.nn.softmax(a)
-        # btd <- hbtc <- hbts @ (hbsc <- bsd <- bsv)
-        return tf.concat(tf.unstack(a @ stack_split(self.v(value))), -1)
+            # btd <- hbtc <- hbts @ (hbsc <- bsd <- bsv)
+            return tf.concat(tf.unstack(a @ stack_split(self.v(value))), -1)
 
 
 class SquareAttention(Record):
@@ -264,7 +264,7 @@ class SquareAttention(Record):
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
-        return a @ self.v(value) # btd <- bts @ (bsd <- bsv)
+            return a @ self.v(value) # btd <- bts @ (bsd <- bsv)
 
 
 class QuerySquareAttention(Record):
@@ -283,7 +283,7 @@ class QuerySquareAttention(Record):
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
-        return a @ value # btd <- bts @ bsd
+            return a @ value # btd <- bts @ bsd
 
 
 class KeySquareAttention(Record):
@@ -301,7 +301,7 @@ class KeySquareAttention(Record):
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
-        return a @ value # btd <- bts @ bsd
+            return a @ value # btd <- bts @ bsd
 
 
 class AdditiveAttention(Record):
@@ -323,4 +323,4 @@ class AdditiveAttention(Record):
             a = tf.squeeze(self.k(self.act(self.q(tf.expand_dims(query, 2), tf.expand_dims(value, 1)))), -1)
             if mask is not None: a += tf.log(mask)
             a = tf.nn.softmax(a)
-        return a @ value # btd <- bts @ bsd
+            return a @ value # btd <- bts @ bsd
