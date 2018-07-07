@@ -149,22 +149,6 @@ class Affine(Record):
             return tf.tensordot(x, self.kern, 1) + self.bias
 
 
-class BiAffine(Record):
-
-    def __init__(self, n, m= None, l= None, name= 'biaffine'):
-        if m is None: m = n
-        if l is None: l = n
-        with tf.variable_scope(name):
-            self.name = name
-            self.kern = tf.get_variable('kern', (m, n))
-            self.keln = tf.get_variable('keln', (l, n))
-            self.bias = tf.get_variable('bias', n)
-
-    def __call__(self, x, w, name= None):
-        with tf.variable_scope(name or self.name):
-            return tf.tensordot(x, self.kern, 1) + tf.tensordot(w, self.keln, 1) + self.bias
-
-
 class Forward(Record):
 
     def __init__(self, n, m= None, mid= None, act= Maxout(2), name= 'forward'):
@@ -186,28 +170,7 @@ class Forward(Record):
             return self.out(self.act(self.mid(x)))
 
 
-class BiForward(Record):
-
-    def __init__(self, n, m= None, l= None, mid= None, act= Maxout(2), name= 'forward'):
-        if m is None: m = n
-        if mid is None: mid = m
-        if isinstance(act, Maxout):
-            assert not mid % act.k
-            nid = mid // act.k
-        else:
-            nid = mid
-        self.act = act
-        with tf.variable_scope(name):
-            self.name = name
-            self.mid = BiAffine(mid, m, l, 'mid')
-            self.out = Affine(n, nid, 'out')
-
-    def __call__(self, x, w, name= None):
-        with tf.variable_scope(name or self.name):
-            return self.out(self.act(self.mid(x, w)))
-
-
-class Attention(Record):
+class SoftmaxAttention(Record):
     """computes multi-head attention from `query` and `value` tensors.
 
     with batch size `b`, time steps `t, s`, dimensions `q, v`
@@ -301,26 +264,4 @@ class KeySquareAttention(Record):
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
-            return a @ value # btd <- bts @ bsd
-
-
-class AdditiveAttention(Record):
-
-    def __init__(self, dim, dim_q= None, num_head= None, act= Maxout(2), name= 'attention'):
-        if dim_q is None: dim_q = dim
-        if isinstance(act, Maxout): assert not dim % act.k
-        self.act = act
-        with tf.variable_scope(name):
-            self.name = name
-            self.q = BiAffine(dim, dim_q, dim, 'q')
-            if isinstance(act, Maxout): dim //= act.k
-            self.k = Affine(1, dim, 'k')
-
-    def __call__(self, query, value, mask= None, name= None):
-        # btq -> bsd -> btd
-        with tf.variable_scope(name or self.name):
-            # bts <- bts1 <- btsd <- (bt1d <- btq) + (b1sd <- bsd)
-            a = tf.squeeze(self.k(self.act(self.q(tf.expand_dims(query, 2), tf.expand_dims(value, 1)))), -1)
-            if mask is not None: a += tf.log(mask)
-            a = tf.nn.softmax(a)
             return a @ value # btd <- bts @ bsd

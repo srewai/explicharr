@@ -1,6 +1,6 @@
 from util import Record, identity
-from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward, BiForward
 from util_tf import SquareAttention as Attention
+from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward
 import numpy as np
 
 
@@ -40,56 +40,25 @@ class Sinusoid(Record):
             return sinusoid(time, self.dim) if self.pos is None else self.pos[:time]
 
 
-class ForwardBlock(Record):
-
-    def __init__(self, dim, dim_mid, act, name= 'forward'):
-        with tf.variable_scope(name):
-            self.name = name
-            self.forward = Forward(dim, dim, dim_mid, act)
-            self.normalize = Normalize(dim)
-
-    def __call__(self, x, dropout, name= None):
-        with tf.variable_scope(name or self.name):
-            return self.normalize(x + dropout(self.forward(x)))
-
-
-class BiForwardBlock(Record):
-
-    def __init__(self, dim, dim_mid, act, name= 'forward'):
-        with tf.variable_scope(name):
-            self.name = name
-            self.forward = BiForward(dim, dim, dim, dim_mid, act)
-            self.normalize = Normalize(dim)
-
-    def __call__(self, x, w, dropout, name= None):
-        with tf.variable_scope(name or self.name):
-            return self.normalize(x + dropout(self.forward(x, w)))
-
-
-class AttentionBlock(Record):
-
-    def __init__(self, dim, num_head, name= 'attention'):
-        with tf.variable_scope(name):
-            self.name = name
-            self.attention = Attention(dim, num_head= num_head)
-            self.normalize = Normalize(dim)
-
-    def __call__(self, x, value, dropout, mask= None, name= None):
-        with tf.variable_scope(name or self.name):
-            return self.normalize(x + dropout(self.attention(x, value, mask)))
-
-
 class EncodeBlock(Record):
 
     def __init__(self, dim, dim_mid, num_head, act, name):
         with tf.variable_scope(name):
             self.name = name
-            self.attention = AttentionBlock(dim, num_head)
-            self.forward = ForwardBlock(dim, dim_mid, act)
+            with tf.variable_scope('attention'):
+                self.att = Attention(dim, num_head= num_head)
+                self.norm_att = Normalize(dim)
+            with tf.variable_scope('forward'):
+                self.fwd = Forward(dim, dim, dim_mid, act)
+                self.norm_fwd = Normalize(dim)
 
     def __call__(self, x, dropout, name= None):
         with tf.variable_scope(name or self.name):
-            return self.forward(self.attention(x, x, dropout), dropout)
+            with tf.variable_scope('attention'):
+                x = self.norm_att(x + dropout(self.att(x, x)))
+            with tf.variable_scope('forward'):
+                x = self.norm_fwd(x + dropout(self.fwd(x)))
+            return x
 
 
 class DecodeBlock(Record):
@@ -97,29 +66,47 @@ class DecodeBlock(Record):
     def __init__(self, dim, dim_mid, num_head, act, name):
         with tf.variable_scope(name):
             self.name = name
-            self.causal_attention = AttentionBlock(dim, num_head, 'causal_attention')
-            self.attention = AttentionBlock(dim, num_head)
-            self.forward = BiForwardBlock(dim, dim_mid, act)
+            with tf.variable_scope('attention'):
+                self.csl = Attention(dim, num_head= num_head, name= 'causal_attention')
+                self.att = Attention(dim, num_head= num_head)
+                self.norm_att = Normalize(dim)
+            with tf.variable_scope('forward'):
+                self.fwd = Forward(dim, dim, dim_mid, act)
+                self.norm_fwd = Normalize(dim)
 
     def __call__(self, x, v, w, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
-            return self.forward(
-                self.causal_attention(x, v, dropout, mask)
-                , self.attention(x, w, dropout)
-                , dropout)
+            with tf.variable_scope('attention'):
+                x = self.norm_att(x + dropout(self.att(x, w) + self.csl(x, v, mask)))
+            with tf.variable_scope('forward'):
+                x = self.norm_fwd(x + dropout(self.fwd(x)))
+            return x
 
 
 # # original transformer
+# from util_tf import SoftmaxAttention as Attention
 # class DecodeBlock(Record):
 #     def __init__(self, dim, dim_mid, num_head, act, name):
 #         with tf.variable_scope(name):
 #             self.name = name
-#             self.causal_attention = AttentionBlock(dim, num_head, 'causal_attention')
-#             self.attention = AttentionBlock(dim, num_head)
-#             self.forward = ForwardBlock(dim, dim_mid, act)
+#             with tf.variable_scope('causal_attention'):
+#                 self.csl = Attention(dim, num_head= num_head)
+#                 self.norm_csl = Normalize(dim)
+#             with tf.variable_scope('attention'):
+#                 self.att = Attention(dim, num_head= num_head)
+#                 self.norm_att = Normalize(dim)
+#             with tf.variable_scope('forward'):
+#                 self.fwd = Forward(dim, dim, dim_mid, act)
+#                 self.norm_fwd = Normalize(dim)
 #     def __call__(self, x, v, w, dropout, mask= None, name= None):
 #         with tf.variable_scope(name or self.name):
-#             return self.forward(self.attention(self.causal_attention(x, v, dropout, mask), w, dropout), dropout)
+#             with tf.variable_scope('causal_attention'):
+#                 x = self.norm_csl(x + dropout(self.csl(x, v, mask)))
+#             with tf.variable_scope('attention'):
+#                 x = self.norm_att(x + dropout(self.att(x, w)))
+#             with tf.variable_scope('forward'):
+#                 x = self.norm_fwd(x + dropout(self.fwd(x)))
+#             return x
 
 
 class Transformer(Record):
@@ -163,8 +150,8 @@ class Transformer(Record):
         assert not dim % 2 and not dim % num_head
         emb_src = Linear(dim, dim_src, 'emb_src')
         # <--experiment
-        emb_tgt = Linear(dim, dim_tgt, 'emb_tgt')
-        # emb_tgt = Forward(dim, dim_tgt, dim_mid, act, 'emb_tgt')
+        emb_tgt = Linear(dim, dim_tgt, 'emb_tgt') # hard
+        # emb_tgt = Forward(dim, dim_tgt, dim_mid, act, 'emb_tgt') # soft
         # experiment-->
         with tf.variable_scope('encode'):
             encode = tuple(EncodeBlock(
@@ -244,8 +231,8 @@ class Transformer(Record):
                 pos = position(len_tgt)
                 i = tf.constant(0)
                 # <--experiment
-                x = tgt[:,:1] # Linear
-                # x = smooth(tgt[:,:1]) # Forward
+                x = tgt[:,:1] # hard
+                # x = smooth(tgt[:,:1]) # soft
                 # experiment-->
                 v = w[:,:0]
                 y = tf.reshape(v, (tf.shape(v)[0], 0, dim_tgt))
@@ -258,8 +245,8 @@ class Transformer(Record):
                 # p : (b, t|,dim_tgt) predictions
                 with tf.variable_scope('emb_tgt'):
                     # <--experiment
-                    x = dropout(emb_tgt.embed(x) + pos[i]) # Linear
-                    # x = dropout(emb_tgt(x) + pos[i]) # Forward
+                    x = dropout(emb_tgt.embed(x) + pos[i]) # hard
+                    # x = dropout(emb_tgt(x) + pos[i]) # soft
                     # experiment-->
                 us = []
                 for dec, v in zip(decode, vs):
@@ -270,13 +257,13 @@ class Transformer(Record):
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
                 # <--experiment
-                # Linear
+                # hard
                 if random:
                     with tf.variable_scope('sample'):
                         x = tf.multinomial(tf.squeeze(x, 1), 1, output_dtype= tf.int32)
                 else:
                     x = tf.argmax(x, -1, output_type= tf.int32, name= 'argmax')
-                # x = tf.nn.softmax(x, name= 'softmax') # Forward
+                # x = tf.nn.softmax(x, name= 'softmax') # soft
                 # experiment-->
                 with tf.variable_scope('cache_p'): p = tf.concat((p, x), 1)
                 return i + 1, x, tuple(us), y, p
@@ -315,9 +302,9 @@ class Transformer(Record):
             for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('emb_tgt_forcing'):
             # <--experiment
-            x = emb_tgt.embed(tgt) # Linear
-            tgt_prob = smooth(tgt) # Forward
-            # x = emb_tgt(tgt_prob) # Forward
+            x = emb_tgt.embed(tgt) # hard
+            tgt_prob = smooth(tgt) # soft
+            # x = emb_tgt(tgt_prob) # soft
             # experiment-->
             x = dropout(x + position(tf.shape(x)[1]))
         with tf.variable_scope('decode_forcing'):
