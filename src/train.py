@@ -61,6 +61,12 @@ def trans(path, m= autoreg_valid, src= src_valid, idx= idx_tgt, len_cap= len_cap
             for p in m.pred.eval({m.src: src[i:j], m.tgt: src[i:j,:1], m.len_tgt: len_cap}):
                 print(decode(idx, p), file= f)
 
+# from util_io import encode
+# idx_src = PointedIndex(np.load("trial/data/index_src.npy").item())
+# def auto(s, m= autoreg_valid, idx_src= idx_src, idx_tgt= idx_tgt, len_cap= len_cap):
+#     src = np.array(encode(idx_src, s)).reshape(1, -1)
+#     return decode(idx_tgt, m.pred.eval({m.src: src, m.tgt: src[:,:1], m.len_tgt: len_cap})[0])
+
 ##################
 # training model #
 ##################

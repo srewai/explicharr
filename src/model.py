@@ -202,7 +202,7 @@ class Transformer(Record):
             , gold= gold
             , **self)
 
-    def autoreg(self, trainable= True, random= False):
+    def autoreg(self, trainable= False, random= False, minimal= True):
         """-> Transformer with new fields, autoregressive
 
         len_tgt : i32 ()              steps to unfold aka t
@@ -215,7 +215,9 @@ class Transformer(Record):
         must be called after `data`.
 
         """
-        logit, smooth = self.logit, self.smooth
+        assert not trainable or not random
+        assert not trainable or not minimal
+        end, logit, smooth = self.end, self.logit, self.smooth
         position, dropout = self.position, self.dropout if trainable else identity
         src, emb_src, encode = self.src, self.emb_src, self.encode
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
@@ -268,7 +270,7 @@ class Transformer(Record):
                 with tf.variable_scope('cache_p'): p = tf.concat((p, x), 1)
                 return i + 1, x, tuple(us), y, p
             _, _, _, y, p = tf.while_loop(
-                lambda i, *_: i < len_tgt # todo stop when end is reached if not trainable
+                lambda i, x, *_: ((i < len_tgt) & ~ tf.reduce_all(tf.equal(x, end))) if minimal else (i < len_tgt)
                 , autoreg
                 , (i, x, (v,)*len(decode), y, p)
                 , (i.shape, x.shape, (v.shape,)*len(decode), tf.TensorShape((None, None, dim_tgt)), p.shape)
