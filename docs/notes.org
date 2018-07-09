@@ -41,3 +41,98 @@ some sentences are unnecessarily long
 | 1024 |  99.99 |  99.99 |
 |------+--------+--------|
 |  max |   2406 |   2218 |
+
+* bptt training
+
+instead of feeding the sampled prediction to the next step, if we take
+the softmax output and multiply it with the embedding matrix, we get a
+weighted average representation of the points in the input space.
+this way the whole autoregressive process can be trained with backprop
+through time.
+
+however the accumulation of uncertainty causes the prediction to
+degrade over time.  the highest probability starts from ~60% and drops
+to ~15%.  the second highest stays ~10%.  when the highest drops below
+20%, the model starts to repeat characters, usually the whitespace.
+
+* changes to the transformer architecture
+
+** parallel decoder attention
+
+the original decoder layer is a self-attention block, followed by a
+attention block on the encoder output, followed by a feedforward
+block.  with dropout, residual connection, and layer normalization
+after each block.  the attention on the encoder output is how the
+model conditions the target sequence on the source sequence.
+
+the story would be that the model looks at what it has already
+produced, and then looks at what it needs to translate, and then
+decides what to produce next.  but it might as well swap the order of
+the first two steps, or do them simultaneously.
+
+we put the two attention blocks in parallel and added the results,
+together with the residual connection.  the validation accuracy in
+teacher-forcing mode stayed the same, but in autoregressive mode the
+new model produced twice as much non-duplicates.  the quality was also
+similar.
+
+** squared dot-product instead of exponentiated
+
+the original multi-head scaled dot-product attention takes the
+dot-product between the query vector and each key vector, scales it
+down by the sqrt of its dimension, and then normalize by softmax to
+produce the weights on the value vectors.  this is done multiple times
+in parallel and the weight vectors are concatenated.
+
+softmax is exponentiation followed by l1-normalization.  it produces a
+distribution over some space.  it was used in the original additive
+attention (1409.0473) where a multilayer perceptron was used to
+produce the attention weights, with a tanh hidden layer and a output
+layer.  the output there was interpreted as the log-odd (logit) for
+the importance of the values, hence exponentiation.
+
+we couldn't think of any plausible interpretation for exponentiating
+dot-products.  exponentiation squashes the negative side and
+exaggerates the positive side, but dot-product is a similarity
+measure.  a key that's more positively similar to the query gets a
+higher weight.  and a similarity that's slightly more positive is
+exaggerated exponentially.  the transformer needed multi-head and
+scaling to make dot-product attention as effective as additive
+attention.  scaling down the "logits" softens exponentiation, and
+multi-head prevents winner-take-all.
+
+we changed exponentiation to squaring, without scaling and multi-head.
+the impact is similar to the previous change.  the validation accuracy
+in teacher-forcing mode is lower in the early stage of training, but
+quickly became the same.  in autoregressive mode, the new model
+produced exact duplicates much less often (only ~30% as opposed to
+~90% of the time).  the quality was roughly similar, but we have to
+inspect further since we have many more instances to look at now.
+
+** no key and value transformation
+
+the attention mechanism starts with three linear transformations to
+produce the queries, the keys, and the values.  in the case of
+self-attention, all three come from the same place.  the paper calls
+them linear projections, but they are not really.  projections are
+idempotent linear maps and there is nothing here to ensure that.
+
+mathematically, the key and value transformations are in fact
+redundant.  the keys are simply taken dot-product with the queries,
+and key transformation can be transposed and composed with the query
+transformation to produce the same outcome.  the value transformation
+is followed only by the attention weights, another linear
+transformation, which means that it could simply be done in the next
+step as part of the feedforward layer.
+
+here are some visual explanations and sketches for the proof.
+
+https://github.com/i-synth/i-synth/blob/master/docs/presentation/attention.pdf
+
+however those redundant linear transformation seems to have made
+learning easier for the model.  the training accuracy dropped ~2% with
+them removed.  but we still need to inspect the quality of the output
+more closely, and maybe consider replacing the query transformation by
+a mlp.  the main motivation for removing the key and value
+transformations is that they make caching much more difficult in
+autoregressive mode.

@@ -202,15 +202,12 @@ class Transformer(Record):
         """
         assert not trainable or not random
         assert not trainable or not minimal
-        end, logit, smooth = self.end, self.logit, self.smooth
+        end, dim_tgt, logit = self.end, self.dim_tgt, self.logit
         position, dropout = self.position, self.dropout if trainable else identity
         src, emb_src, encode = self.src, self.emb_src, self.encode
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
-        dim, dim_tgt = self.dim, self.dim_tgt
-        with tf.variable_scope('emb_src_autoreg'):
-            w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
-        with tf.variable_scope('encode_autoreg'):
-            for enc in encode: w = enc(w, dropout)
+        with tf.variable_scope('emb_src_autoreg'): w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
+        with tf.variable_scope('encode_autoreg'): for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('decode_autoreg'):
             with tf.variable_scope('init'):
                 len_tgt = tf.shape(tgt)[1]
@@ -264,17 +261,12 @@ class Transformer(Record):
         must be called after `data`.
 
         """
-        logit, smooth = self.logit, self.smooth
-        position, dropout = self.position, self.dropout if trainable else identity
+        logit, position, dropout = self.logit, self.position, self.dropout if trainable else identity
         src, emb_src, encode = self.src, self.emb_src, self.encode
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
-        dim_tgt = self.dim_tgt
-        with tf.variable_scope('emb_src_forcing'):
-            w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
-        with tf.variable_scope('encode_forcing'):
-            for enc in encode: w = enc(w, dropout)
-        with tf.variable_scope('emb_tgt_forcing'):
-            x = position(tf.shape(tgt)[1]) + dropout(emb_tgt.embed(tgt))
+        with tf.variable_scope('emb_src_forcing'): w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
+        with tf.variable_scope('emb_tgt_forcing'): x = position(tf.shape(tgt)[1]) + dropout(emb_tgt.embed(tgt))
+        with tf.variable_scope('encode_forcing'): for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
