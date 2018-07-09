@@ -223,7 +223,7 @@ class Transformer(Record):
                 # v : (b, t, dim)     attention values
                 # y : (b, t, dim_tgt) logit over x one step ahead
                 # p : (b, t)          predictions
-                with tf.variable_scope('emb_tgt'): x = pos[i] + dropout(emb_tgt.embed(tgt))
+                with tf.variable_scope('emb_tgt'): x = pos[i] + dropout(emb_tgt.embed(x))
                 us = []
                 for dec, v in zip(decode, vs):
                     with tf.variable_scope('cache_v'):

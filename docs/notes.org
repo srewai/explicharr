@@ -42,6 +42,11 @@ some sentences are unnecessarily long
 |------+--------+--------|
 |  max |   2406 |   2218 |
 
+even though we removed sentence pairs which are the same,
+if we count the character pairs by position, ~78% of them are still the same.
+so simply learn to duplicate the source sequence would be a good strategy for the model,
+unless the target input provides something informative.
+
 * bptt training
 
 instead of feeding the sampled prediction to the next step, if we take
