@@ -80,16 +80,31 @@ class DecodeBlock(Record):
 
 
 # # original transformer
-# from util_tf import SoftmaxAttention as Attention
+# from util_tf import TransformerAttention as Attention
+# class EncodeBlock(Record):
+#     def __init__(self, dim, dim_mid, act, name):
+#         with tf.variable_scope(name):
+#             self.name = name
+#             with tf.variable_scope('att'):
+#                 self.att = Attention(dim)
+#                 self.norm_att = Normalize(dim)
+#             with tf.variable_scope('fwd'):
+#                 self.fwd = Forward(dim, dim, dim_mid, act)
+#                 self.norm_fwd = Normalize(dim)
+#     def __call__(self, x, dropout, name= None):
+#         with tf.variable_scope(name or self.name):
+#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x)))
+#             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
+#             return x
 # class DecodeBlock(Record):
-#     def __init__(self, dim, dim_mid, act, name, num_head):
+#     def __init__(self, dim, dim_mid, act, name):
 #         with tf.variable_scope(name):
 #             self.name = name
 #             with tf.variable_scope('csl'):
-#                 self.csl = Attention(dim, num_head= num_head)
+#                 self.csl = Attention(dim)
 #                 self.norm_csl = Normalize(dim)
 #             with tf.variable_scope('att'):
-#                 self.att = Attention(dim, num_head= num_head)
+#                 self.att = Attention(dim)
 #                 self.norm_att = Normalize(dim)
 #             with tf.variable_scope('fwd'):
 #                 self.fwd = Forward(dim, dim, dim_mid, act)

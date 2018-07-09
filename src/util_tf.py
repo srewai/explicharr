@@ -210,8 +210,9 @@ class TransformerAttention(Record):
     """
 
     def __init__(self, n, m= None, name= 'attention', num_head= None):
-        assert num_head and not n % num_head
         if m is None: m = n
+        if num_head is None: num_head = n // 64
+        assert not n % num_head
         self.n, self.num_head = n, num_head
         with tf.variable_scope(name):
             self.name = name
@@ -291,8 +292,10 @@ class ScaledSoftmaxAttention(Record):
 
 class MultiheadSoftmaxAttention(Record):
 
-    def __init__(self, n, m= None, name= 'attention', num_head= 4, layer= Affine, **largs):
+    def __init__(self, n, m= None, name= 'attention', num_head= None, layer= Affine, **largs):
         if m is None: m = n
+        if num_head is None: num_head = n // 64
+        assert not n % num_head
         self.n, self.num_head = n, num_head
         with tf.variable_scope(name):
             self.name = name
