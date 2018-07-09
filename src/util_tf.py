@@ -267,3 +267,45 @@ class SoftmaxAttention(Record):
             if mask is not None: a += tf.log(mask)
             a = tf.nn.softmax(a)
             return a @ value # btn <- bts @ bsn
+
+
+class ScaledSoftmaxAttention(Record):
+
+    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
+        if m is None: m = n
+        self.n = n
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = layer(n, m, name= 'q', **largs)
+
+    def __call__(self, query, value, mask= None, name= None):
+        # query:btm -> value:bsn -> btn
+        with tf.variable_scope(name or self.name):
+            # bts <- (btn <- btm) @ (bds <- bsn)
+            a = tf.matmul(self.q(query), value, transpose_b= True)
+            a *= self.n ** -0.5
+            if mask is not None: a += tf.log(mask)
+            a = tf.nn.softmax(a)
+            return a @ value # btn <- bts @ bsn
+
+
+class MultiheadSoftmaxAttention(Record):
+
+    def __init__(self, n, m= None, name= 'attention', num_head= 4, layer= Affine, **largs):
+        if m is None: m = n
+        self.n, self.num_head = n, num_head
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = layer(n, m, name= 'q', **largs)
+
+    def __call__(self, query, value, mask= None, name= None):
+        # query:btm -> value:bsn -> btn
+        stack_split = lambda x: tf.stack(tf.split(x, self.num_head, -1)) # btn -> hbtc
+        with tf.variable_scope(name or self.name):
+            # hbts <- (hbtc <- btn <- btm) @ (hbcs <- hbsc <- btn <- btn)
+            a = tf.matmul(stack_split(self.q(query)), stack_split(value), transpose_b= True)
+            a *= (self.n // self.num_head) ** -0.5
+            if mask is not None: a += tf.log(mask)
+            a = tf.nn.softmax(a)
+            # btn <- hbtc <- hbts @ (hbsc <- bsn <- bsn)
+            return tf.concat(tf.unstack(a @ stack_split(value)), -1)

@@ -45,19 +45,17 @@ class EncodeBlock(Record):
     def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
-            with tf.variable_scope('attention'):
-                self.att = Attention(dim) # experiment
+            with tf.variable_scope('att'):
+                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act) # experiment
                 self.norm_att = Normalize(dim)
-            with tf.variable_scope('forward'):
+            with tf.variable_scope('fwd'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
                 self.norm_fwd = Normalize(dim)
 
     def __call__(self, x, dropout, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('attention'):
-                x = self.norm_att(x + dropout(self.att(x, x)))
-            with tf.variable_scope('forward'):
-                x = self.norm_fwd(x + dropout(self.fwd(x)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x)))
+            with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
 
@@ -66,20 +64,18 @@ class DecodeBlock(Record):
     def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
-            with tf.variable_scope('attention'):
-                self.csl = Attention(dim, name= 'causal_attention') # experiment
-                self.att = Attention(dim) # experiment
+            with tf.variable_scope('att'):
+                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act, name= 'causal') # experiment
+                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act) # experiment
                 self.norm_att = Normalize(dim)
-            with tf.variable_scope('forward'):
+            with tf.variable_scope('fwd'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
                 self.norm_fwd = Normalize(dim)
 
     def __call__(self, x, v, w, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('attention'):
-                x = self.norm_att(x + dropout(self.att(x, w) + self.csl(x, v, mask)))
-            with tf.variable_scope('forward'):
-                x = self.norm_fwd(x + dropout(self.fwd(x)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w) + self.csl(x, v, mask)))
+            with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
 
@@ -89,23 +85,20 @@ class DecodeBlock(Record):
 #     def __init__(self, dim, dim_mid, act, name, num_head):
 #         with tf.variable_scope(name):
 #             self.name = name
-#             with tf.variable_scope('causal_attention'):
+#             with tf.variable_scope('csl'):
 #                 self.csl = Attention(dim, num_head= num_head)
 #                 self.norm_csl = Normalize(dim)
-#             with tf.variable_scope('attention'):
+#             with tf.variable_scope('att'):
 #                 self.att = Attention(dim, num_head= num_head)
 #                 self.norm_att = Normalize(dim)
-#             with tf.variable_scope('forward'):
+#             with tf.variable_scope('fwd'):
 #                 self.fwd = Forward(dim, dim, dim_mid, act)
 #                 self.norm_fwd = Normalize(dim)
 #     def __call__(self, x, v, w, dropout, mask= None, name= None):
 #         with tf.variable_scope(name or self.name):
-#             with tf.variable_scope('causal_attention'):
-#                 x = self.norm_csl(x + dropout(self.csl(x, v, mask)))
-#             with tf.variable_scope('attention'):
-#                 x = self.norm_att(x + dropout(self.att(x, w)))
-#             with tf.variable_scope('forward'):
-#                 x = self.norm_fwd(x + dropout(self.fwd(x)))
+#             with tf.variable_scope('csl'): x = self.norm_csl(x + dropout(self.csl(x, v, mask)))
+#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w)))
+#             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
 #             return x
 
 
@@ -148,10 +141,7 @@ class Transformer(Record):
         """
         assert not dim % 2
         emb_src = Linear(dim, dim_src, 'emb_src')
-        # <--experiment
-        emb_tgt = Linear(dim, dim_tgt, 'emb_tgt') # hard
-        # emb_tgt = Forward(dim, dim_tgt, dim_mid, act, 'emb_tgt') # soft
-        # experiment-->
+        emb_tgt = Linear(dim, dim_tgt, 'emb_tgt')
         with tf.variable_scope('encode'):
             encode = tuple(EncodeBlock(dim, dim_mid, act, "layer{}".format(1+i)) for i in range(num_layer))
         with tf.variable_scope('decode'):
@@ -218,8 +208,7 @@ class Transformer(Record):
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
         dim, dim_tgt = self.dim, self.dim_tgt
         with tf.variable_scope('emb_src_autoreg'):
-            w = emb_src.embed(src)
-            w = dropout(w + position(tf.shape(w)[1]))
+            w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
         with tf.variable_scope('encode_autoreg'):
             for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('decode_autoreg'):
@@ -227,24 +216,17 @@ class Transformer(Record):
                 len_tgt = tf.shape(tgt)[1]
                 pos = position(len_tgt)
                 i = tf.constant(0)
-                # <--experiment
-                x = tgt[:,:1] # hard
-                # x = smooth(tgt[:,:1]) # soft
-                # experiment-->
+                x = tgt[:,:1]
                 v = w[:,:0]
                 y = tf.reshape(v, (tf.shape(v)[0], 0, dim_tgt))
                 p = x[:,1:]
             def autoreg(i, x, vs, y, p):
                 # i : ()              time step from 0 to t=len_tgt
-                # x : (b, 1|,dim_tgt) x_i
+                # x : (b, 1)          x_i
                 # v : (b, t, dim)     attention values
                 # y : (b, t, dim_tgt) logit over x one step ahead
-                # p : (b, t|,dim_tgt) predictions
-                with tf.variable_scope('emb_tgt'):
-                    # <--experiment
-                    x = dropout(emb_tgt.embed(x) + pos[i]) # hard
-                    # x = dropout(emb_tgt(x) + pos[i]) # soft
-                    # experiment-->
+                # p : (b, t)          predictions
+                with tf.variable_scope('emb_tgt'): x = pos[i] + dropout(emb_tgt.embed(tgt))
                 us = []
                 for dec, v in zip(decode, vs):
                     with tf.variable_scope('cache_v'):
@@ -253,15 +235,11 @@ class Transformer(Record):
                     x = dec(x, v, w, dropout)
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
-                # <--experiment
-                # hard
                 if random:
                     with tf.variable_scope('sample'):
                         x = tf.multinomial(tf.squeeze(x, 1), 1, output_dtype= tf.int32)
                 else:
                     x = tf.argmax(x, -1, output_type= tf.int32, name= 'argmax')
-                # x = tf.nn.softmax(x, name= 'softmax') # soft
-                # experiment-->
                 with tf.variable_scope('cache_p'): p = tf.concat((p, x), 1)
                 return i + 1, x, tuple(us), y, p
             _, _, _, y, p = tf.while_loop(
@@ -277,7 +255,6 @@ class Transformer(Record):
     def forcing(self, trainable= True):
         """-> Transformer with new fields, teacher forcing
 
-        tgt_prob : f32 (b, t, dim_tgt) soft target feed
           output : f32 (b, t, dim_tgt) prediction on logit scale
             prob : f32 (b, t, dim_tgt) prediction, soft
             pred : i32 (b, t)          prediction, hard
@@ -293,24 +270,18 @@ class Transformer(Record):
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
         dim_tgt = self.dim_tgt
         with tf.variable_scope('emb_src_forcing'):
-            w = emb_src.embed(src)
-            w = dropout(w + position(tf.shape(w)[1]))
+            w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
         with tf.variable_scope('encode_forcing'):
             for enc in encode: w = enc(w, dropout)
         with tf.variable_scope('emb_tgt_forcing'):
-            # <--experiment
-            x = emb_tgt.embed(tgt) # hard
-            tgt_prob = smooth(tgt) # soft
-            # x = emb_tgt(tgt_prob) # soft
-            # experiment-->
-            x = dropout(x + position(tf.shape(x)[1]))
+            x = position(tf.shape(tgt)[1]) + dropout(emb_tgt.embed(tgt))
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
             for dec in decode: x = dec(x, x, w, dropout, mask)
         y = logit(x)
         p = tf.argmax(y, -1, output_type= tf.int32, name= 'pred')
-        return Transformer(tgt_prob= tgt_prob, output= y, pred= p, **self)._eval()
+        return Transformer(output= y, pred= p, **self)._eval()
 
     def _eval(self):
         gold, pred, output, smooth = self.gold, self.pred, self.output, self.smooth
