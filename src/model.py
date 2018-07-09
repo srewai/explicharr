@@ -1,5 +1,5 @@
 from util import Record, identity
-from util_tf import SquareAttention as Attention
+from util_tf import SquareAttention as Attention # experiment
 from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward
 import numpy as np
 
@@ -42,11 +42,11 @@ class Sinusoid(Record):
 
 class EncodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, act, name):
+    def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
             with tf.variable_scope('attention'):
-                self.att = Attention(dim, num_head= num_head)
+                self.att = Attention(dim) # experiment
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('forward'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
@@ -63,12 +63,12 @@ class EncodeBlock(Record):
 
 class DecodeBlock(Record):
 
-    def __init__(self, dim, dim_mid, num_head, act, name):
+    def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
             with tf.variable_scope('attention'):
-                self.csl = Attention(dim, num_head= num_head, name= 'causal_attention')
-                self.att = Attention(dim, num_head= num_head)
+                self.csl = Attention(dim, name= 'causal_attention') # experiment
+                self.att = Attention(dim) # experiment
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('forward'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
@@ -86,7 +86,7 @@ class DecodeBlock(Record):
 # # original transformer
 # from util_tf import SoftmaxAttention as Attention
 # class DecodeBlock(Record):
-#     def __init__(self, dim, dim_mid, num_head, act, name):
+#     def __init__(self, dim, dim_mid, act, name, num_head):
 #         with tf.variable_scope(name):
 #             self.name = name
 #             with tf.variable_scope('causal_attention'):
@@ -127,8 +127,7 @@ class Transformer(Record):
     @staticmethod
     def new(end= 1
             , dim_src= 256, dim= 256
-            , dim_tgt= 256, dim_mid= 512
-            , num_layer= 2, num_head= 4
+            , dim_tgt= 256, dim_mid= 512, num_layer= 2
             , logit_share_embedding= False
             , act= tf.nn.relu
             , smooth= 0.1
@@ -147,20 +146,16 @@ class Transformer(Record):
         `end` is treated as the padding for both source and target.
 
         """
-        assert not dim % 2 and not dim % num_head
+        assert not dim % 2
         emb_src = Linear(dim, dim_src, 'emb_src')
         # <--experiment
         emb_tgt = Linear(dim, dim_tgt, 'emb_tgt') # hard
         # emb_tgt = Forward(dim, dim_tgt, dim_mid, act, 'emb_tgt') # soft
         # experiment-->
         with tf.variable_scope('encode'):
-            encode = tuple(EncodeBlock(
-                dim, dim_mid, num_head, act, "layer{}".format(i + 1))
-                           for i in range(num_layer))
+            encode = tuple(EncodeBlock(dim, dim_mid, act, "layer{}".format(1+i)) for i in range(num_layer))
         with tf.variable_scope('decode'):
-            decode = tuple(DecodeBlock(
-                dim, dim_mid, num_head, act, "layer{}".format(i + 1))
-                        for i in range(num_layer))
+            decode = tuple(DecodeBlock(dim, dim_mid, act, "layer{}".format(1+i)) for i in range(num_layer))
         return Transformer(
             dim= dim, dim_tgt= dim_tgt
             , end= tf.constant(end, tf.int32, (), 'end')

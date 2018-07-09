@@ -170,98 +170,100 @@ class Forward(Record):
             return self.out(self.act(self.mid(x)))
 
 
-class SoftmaxAttention(Record):
+class AdditiveAttention(Record):
+
+    def __init__(self, n, m= None, name= 'attention', mid= 4, act= Maxout(2)):
+        if m is None: m = n
+        if mid is None: mid = m
+        if isinstance(act, Maxout):
+            assert not mid % act.k
+            nid = mid // act.k
+        else:
+            nid = mid
+        self.act = act
+        with tf.variable_scope(name):
+            self.name = name
+            self.q = Affine(mid, m, 'q')
+            self.k = Linear(mid, n, 'k')
+            self.a = Linear(1, nid, 'a')
+
+    def __call__(self, query, value, mask= None, name= None):
+        # query:btq -> value:bsd -> btd
+        with tf.variable_scope(name or self.name):
+            # bts <- bts1 <- btsk <- (b1sk <- bsk <- bsd) + (bt1k <- btk <- btq)
+            a = tf.squeeze(self.a(self.act(tf.expand_dims(self.k(value), 1) + tf.expand_dims(self.q(query), 2))), 3)
+            if mask is not None: a += tf.log(mask)
+            return tf.nn.softmax(a) @ value # btd <- bts @ bsd
+
+
+class TransformerAttention(Record):
     """computes multi-head attention from `query` and `value` tensors.
 
-    with batch size `b`, time steps `t, s`, dimensions `q, v`
+    with batch size `b`, time steps `t,s`, dimensions `m,n`
 
-    - query : b,t,q
-    - value : b,s,v
+    - query : b,t,m
+    - value : b,s,n
 
-    the returned tensor has shape `b, t, dim`, and `mask` when
-    supplied must have shape compatible to `num_head, b, t, s`.
+    the returned tensor has shape `b,t,n`, and `mask` when supplied
+    should have shape `t,s`.
 
     """
 
-    def __init__(self, dim, dim_q= None, dim_v= None, num_head= None, name= 'attention'):
-        assert num_head
-        assert not dim % num_head
-        if dim_q is None: dim_q = dim
-        if dim_v is None: dim_v = dim
-        self.dim, self.num_head = dim, num_head
+    def __init__(self, n, m= None, name= 'attention', num_head= None):
+        assert num_head and not n % num_head
+        if m is None: m = n
+        self.n, self.num_head = n, num_head
         with tf.variable_scope(name):
             self.name = name
-            self.q = Linear(dim_q, dim, 'q')
-            self.k = Linear(dim_v, dim, 'k')
-            self.v = Linear(dim_v, dim, 'v')
+            self.q = Linear(n, m, 'q')
+            self.k = Linear(n, n, 'k')
+            self.v = Linear(n, n, 'v')
 
     def __call__(self, query, value, mask= None, name= None):
-        # btq -> bsv -> btd
-        stack_split = lambda x: tf.stack(tf.split(x, self.num_head, -1)) # btd -> hbtc
+        # query:btm -> value:bsn -> btn
+        stack_split = lambda x: tf.stack(tf.split(x, self.num_head, -1)) # btn -> hbtc
         with tf.variable_scope(name or self.name):
-            # hbts <- (hbtc <- btd <- btq) @ (hbcs <- hbsc <- btd <- btv)
+            # hbts <- (hbtc <- btn <- btm) @ (hbcs <- hbsc <- btn <- btn)
             a = tf.matmul(stack_split(self.q(query)), stack_split(self.k(value)), transpose_b= True)
-            a *= (self.dim // self.num_head) ** -0.5
+            a *= (self.n // self.num_head) ** -0.5
             if mask is not None: a += tf.log(mask)
             a = tf.nn.softmax(a)
-            # btd <- hbtc <- hbts @ (hbsc <- bsd <- bsv)
+            # btn <- hbtc <- hbts @ (hbsc <- bsn <- bsn)
             return tf.concat(tf.unstack(a @ stack_split(self.v(value))), -1)
 
 
 class SquareAttention(Record):
 
-    def __init__(self, dim, dim_q= None, dim_v= None, num_head= None, name= 'attention'):
-        if dim_q is None: dim_q = dim
-        if dim_v is None: dim_v = dim
+    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
+        if m is None: m = n
         with tf.variable_scope(name):
             self.name = name
-            self.q = Linear(dim_q, dim, 'q')
-            self.k = Linear(dim_v, dim, 'k')
-            self.v = Linear(dim_v, dim, 'v')
+            self.q = layer(n, m, name= 'q', **largs)
 
     def __call__(self, query, value, mask= None, name= None):
-        # btq -> bsv -> btd
+        # query:btm -> value:bsn -> btn
         with tf.variable_scope(name or self.name):
-            # bts <- (btd <- btq) @ (bsd <- bsv)
-            a = tf.matmul(self.q(query), self.k(value), transpose_b= True)
-            if mask is not None: a *= mask
-            a = tf.square(a)
-            a /= tf.reduce_sum(a, -1, True) + 1e-8
-            return a @ self.v(value) # btd <- bts @ (bsd <- bsv)
-
-
-class QuerySquareAttention(Record):
-
-    def __init__(self, dim, dim_q= None, num_head= None, name= 'attention'):
-        if dim_q is None: dim_q = dim
-        with tf.variable_scope(name):
-            self.name = name
-            self.q = Affine(dim, dim_q, 'q')
-
-    def __call__(self, query, value, mask= None, name= None):
-        # btq -> bsd -> btd
-        with tf.variable_scope(name or self.name):
-            # bts <- (btd <- btq) @ (bds <- bsd)
+            # bts <- (btn <- btm) @ (bds <- bsn)
             a = tf.matmul(self.q(query), value, transpose_b= True)
             if mask is not None: a *= mask
             a = tf.square(a)
             a /= tf.reduce_sum(a, -1, True) + 1e-8
-            return a @ value # btd <- bts @ bsd
+            return a @ value # btn <- bts @ bsn
 
 
-class KeySquareAttention(Record):
+class SoftmaxAttention(Record):
 
-    def __init__(self, dim, num_head= None, name= 'attention'):
+    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
+        if m is None: m = n
         with tf.variable_scope(name):
             self.name = name
-            self.k = Affine(dim, dim, 'k')
+            self.q = layer(n, m, name= 'q', **largs)
 
     def __call__(self, query, value, mask= None, name= None):
-        # btd -> bsd -> btd
+        # query:btm -> value:bsn -> btn
         with tf.variable_scope(name or self.name):
-            # bts <- btd @ (bds <- bsd)
-            a = tf.matmul(query, self.k(value), transpose_b= True)
-            if mask is not None: a *= mask
-            a = tf.square(a)
-            a /= tf.reduce_sum(a, -1, True) + 1e-8
-            return a @ value # btd <- bts @ bsd
+            # bts <- (btn <- btm) @ (bds <- bsn)
+            a = tf.matmul(self.q(query), value, transpose_b= True)
+            if mask is not None: a += tf.log(mask)
+            a = tf.nn.softmax(a)
+            return a @ value # btn <- bts @ bsn
