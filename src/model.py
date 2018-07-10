@@ -52,9 +52,9 @@ class EncodeBlock(Record):
                 self.fwd = Forward(dim, dim, dim_mid, act)
                 self.norm_fwd = Normalize(dim)
 
-    def __call__(self, x, dropout, name= None):
+    def __call__(self, x, mask, dropout, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
@@ -72,9 +72,9 @@ class DecodeBlock(Record):
                 self.fwd = Forward(dim, dim, dim_mid, act)
                 self.norm_fwd = Normalize(dim)
 
-    def __call__(self, x, v, w, dropout, mask= None, name= None):
+    def __call__(self, x, v, w, m, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w) + self.csl(x, v, mask)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m) + self.csl(x, v, mask)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
@@ -91,9 +91,9 @@ class DecodeBlock(Record):
 #             with tf.variable_scope('fwd'):
 #                 self.fwd = Forward(dim, dim, dim_mid, act)
 #                 self.norm_fwd = Normalize(dim)
-#     def __call__(self, x, dropout, name= None):
+#     def __call__(self, x, mask, dropout, name= None):
 #         with tf.variable_scope(name or self.name):
-#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x)))
+#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask)))
 #             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
 #             return x
 # class DecodeBlock(Record):
@@ -109,10 +109,10 @@ class DecodeBlock(Record):
 #             with tf.variable_scope('fwd'):
 #                 self.fwd = Forward(dim, dim, dim_mid, act)
 #                 self.norm_fwd = Normalize(dim)
-#     def __call__(self, x, v, w, dropout, mask= None, name= None):
+#     def __call__(self, x, v, w, m, dropout, mask= None, name= None):
 #         with tf.variable_scope(name or self.name):
 #             with tf.variable_scope('csl'): x = self.norm_csl(x + dropout(self.csl(x, v, mask)))
-#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w)))
+#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m)))
 #             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
 #             return x
 
@@ -191,13 +191,14 @@ class Transformer(Record):
             src = src_ = placeholder(tf.int32, (None, None), src)
             len_src = count_not_all(tf.equal(src, end)) + 1
             src = src[:,:len_src]
+            src_mask = tf.expand_dims(tf.not_equal(src, end), 1)
         with tf.variable_scope('tgt'):
             tgt = tgt_ = placeholder(tf.int32, (None, None), tgt)
             len_tgt = count_not_all(tf.equal(tgt, end))
             tgt, gold = tgt[:,:len_tgt], tgt[:,1:1+len_tgt]
         return Transformer(
             position= Sinusoid(dim, len_cap)
-            , src_= src_, src= src
+            , src_= src_, src= src, src_mask= src_mask
             , tgt_= tgt_, tgt= tgt
             , gold= gold
             , **self)
@@ -223,7 +224,7 @@ class Transformer(Record):
         tgt, emb_tgt, decode = self.tgt, self.emb_tgt, self.decode
         with tf.variable_scope('emb_src_autoreg'): w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
         with tf.variable_scope('encode_autoreg'):
-            for enc in encode: w = enc(w, dropout)
+            for enc in encode: w = enc(w, self.src_mask, dropout)
         with tf.variable_scope('decode_autoreg'):
             with tf.variable_scope('init'):
                 len_tgt = tf.shape(tgt)[1]
@@ -245,7 +246,7 @@ class Transformer(Record):
                     with tf.variable_scope('cache_v'):
                         v = tf.concat((v, x), 1)
                         us.append(v)
-                    x = dec(x, v, w, dropout)
+                    x = dec(x, v, w, self.src_mask, dropout)
                 x = logit(x)
                 with tf.variable_scope('cache_y'): y = tf.concat((y, x), 1)
                 if random:
@@ -283,11 +284,11 @@ class Transformer(Record):
         with tf.variable_scope('emb_src_forcing'): w = position(tf.shape(src)[1]) + dropout(emb_src.embed(src))
         with tf.variable_scope('emb_tgt_forcing'): x = position(tf.shape(tgt)[1]) + dropout(emb_tgt.embed(tgt))
         with tf.variable_scope('encode_forcing'):
-            for enc in encode: w = enc(w, dropout)
+            for enc in encode: w = enc(w, self.src_mask, dropout)
         with tf.variable_scope('decode_forcing'):
             with tf.variable_scope('mask'):
                 mask = tf.linalg.LinearOperatorLowerTriangular(tf.ones((tf.shape(x)[1],)*2)).to_dense()
-            for dec in decode: x = dec(x, x, w, dropout, mask)
+            for dec in decode: x = dec(x, x, w, self.src_mask, dropout, mask)
         y = logit(x)
         p = tf.argmax(y, -1, output_type= tf.int32, name= 'pred')
         return Transformer(output= y, pred= p, **self)._eval()
