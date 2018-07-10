@@ -235,14 +235,14 @@ class TransformerAttention(Record):
 
 class QueryAttention(Record):
 
-    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
+    def __init__(self, n, m= None, name= 'attention', layer= Forward, **largs):
         if m is None: m = n
         self.n = n
         with tf.variable_scope(name):
             self.name = name
             self.q = layer(n, m, name= 'q', **largs)
 
-    def __call__(self, query, value, mask= None, name= None, softmax= False, scale= True, head= 1):
+    def __call__(self, query, value, mask= None, name= None, softmax= True, scale= True, head= 1):
         # query:btm -> value:bsn -> btn
         if 1 < head:
             assert not self.n % head

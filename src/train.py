@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-trial      = '01'
+trial      = '0'
 len_cap    = 2**8
 batch_size = 2**6
 ckpt       = None
@@ -81,10 +81,10 @@ autoreg_train = model_train.autoreg().train(warmup= epoch)
 
 saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
-wtr = tf.summary.FileWriter(join(logdir, "trial{}".format(trial)))
+wtr = tf.summary.FileWriter(join(logdir, "{}".format(trial)))
 
 if ckpt:
-    saver.restore(sess, ckpt)
+    saver.restore(sess, "trial/model/{}{}".format(trial, ckpt))
 else:
     tf.global_variables_initializer().run()
 
@@ -104,5 +104,5 @@ while True:
         # pick a training fn to run
         step = sess.run(forcing_train.step)
         if not step % step_eval: wtr.add_summary(sess.run(summ), step)
-    saver.save(sess, "trial/model/{}_{}".format(trial, step), write_meta_graph= False)
-    trans("trial/pred/{}_{}".format(trial, step))
+    saver.save(sess, "trial/model/{}{}".format(trial, step), write_meta_graph= False)
+    trans("trial/pred/{}{}".format(trial, step))
