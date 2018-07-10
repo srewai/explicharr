@@ -233,44 +233,7 @@ class TransformerAttention(Record):
             return tf.concat(tf.unstack(a @ stack_split(self.v(value))), -1)
 
 
-class SquareAttention(Record):
-
-    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
-        if m is None: m = n
-        with tf.variable_scope(name):
-            self.name = name
-            self.q = layer(n, m, name= 'q', **largs)
-
-    def __call__(self, query, value, mask= None, name= None):
-        # query:btm -> value:bsn -> btn
-        with tf.variable_scope(name or self.name):
-            # bts <- (btn <- btm) @ (bds <- bsn)
-            a = tf.matmul(self.q(query), value, transpose_b= True)
-            if mask is not None: a *= mask
-            a = tf.square(a)
-            a /= tf.reduce_sum(a, -1, True) + 1e-8
-            return a @ value # btn <- bts @ bsn
-
-
-class SoftmaxAttention(Record):
-
-    def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
-        if m is None: m = n
-        with tf.variable_scope(name):
-            self.name = name
-            self.q = layer(n, m, name= 'q', **largs)
-
-    def __call__(self, query, value, mask= None, name= None):
-        # query:btm -> value:bsn -> btn
-        with tf.variable_scope(name or self.name):
-            # bts <- (btn <- btm) @ (bds <- bsn)
-            a = tf.matmul(self.q(query), value, transpose_b= True)
-            if mask is not None: a += tf.log(mask)
-            a = tf.nn.softmax(a)
-            return a @ value # btn <- bts @ bsn
-
-
-class ScaledSoftmaxAttention(Record):
+class QueryAttention(Record):
 
     def __init__(self, n, m= None, name= 'attention', layer= Affine, **largs):
         if m is None: m = n
@@ -279,36 +242,23 @@ class ScaledSoftmaxAttention(Record):
             self.name = name
             self.q = layer(n, m, name= 'q', **largs)
 
-    def __call__(self, query, value, mask= None, name= None):
+    def __call__(self, query, value, mask= None, name= None, softmax= False, scale= True, head= 1):
         # query:btm -> value:bsn -> btn
+        if 1 < head:
+            assert not self.n % head
+            stack_split = lambda x: tf.stack(tf.split(x, head, -1)) # btn -> hbtc
         with tf.variable_scope(name or self.name):
-            # bts <- (btn <- btm) @ (bds <- bsn)
-            a = tf.matmul(self.q(query), value, transpose_b= True)
-            a *= self.n ** -0.5
-            if mask is not None: a += tf.log(mask)
-            a = tf.nn.softmax(a)
-            return a @ value # btn <- bts @ bsn
-
-
-class MultiheadSoftmaxAttention(Record):
-
-    def __init__(self, n, m= None, name= 'attention', num_head= None, layer= Affine, **largs):
-        if m is None: m = n
-        if num_head is None: num_head = n // 64
-        assert not n % num_head
-        self.n, self.num_head = n, num_head
-        with tf.variable_scope(name):
-            self.name = name
-            self.q = layer(n, m, name= 'q', **largs)
-
-    def __call__(self, query, value, mask= None, name= None):
-        # query:btm -> value:bsn -> btn
-        stack_split = lambda x: tf.stack(tf.split(x, self.num_head, -1)) # btn -> hbtc
-        with tf.variable_scope(name or self.name):
-            # hbts <- (hbtc <- btn <- btm) @ (hbcs <- hbsc <- btn <- btn)
-            a = tf.matmul(stack_split(self.q(query)), stack_split(value), transpose_b= True)
-            a *= (self.n // self.num_head) ** -0.5
-            if mask is not None: a += tf.log(mask)
-            a = tf.nn.softmax(a)
-            # btn <- hbtc <- hbts @ (hbsc <- bsn <- bsn)
-            return tf.concat(tf.unstack(a @ stack_split(value)), -1)
+            query = self.q(query) # btn <- btm
+            if 1 < head: query, value = stack_split(query), stack_split(value)
+            a = tf.matmul(query, value, transpose_b= True) # bts <- btn @ (bns <- bsn)
+            if softmax:
+                if scale: a *= self.n ** -0.5
+                if mask is not None: a += tf.log(mask)
+                a = tf.nn.softmax(a)
+            else:
+                if mask is not None: a *= mask
+                a = tf.square(a)
+                a /= tf.reduce_sum(a, -1, True) + 1e-8
+            a @= value # btn <- bts @ bsn
+            if 1 < head: a = tf.concat(tf.unstack(a), -1)
+            return a

@@ -1,5 +1,5 @@
 from util import Record, identity
-from util_tf import SquareAttention as Attention # experiment
+from util_tf import QueryAttention as Attention
 from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward
 import numpy as np
 
@@ -46,7 +46,7 @@ class EncodeBlock(Record):
         with tf.variable_scope(name):
             self.name = name
             with tf.variable_scope('att'):
-                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act) # experiment
+                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act)
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('fwd'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
@@ -65,8 +65,8 @@ class DecodeBlock(Record):
         with tf.variable_scope(name):
             self.name = name
             with tf.variable_scope('att'):
-                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act, name= 'causal') # experiment
-                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act) # experiment
+                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act, name= 'causal')
+                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act)
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('fwd'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
