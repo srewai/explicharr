@@ -141,3 +141,17 @@ more closely, and maybe consider replacing the query transformation by
 a mlp.  the main motivation for removing the key and value
 transformations is that they make caching much more difficult in
 autoregressive mode.
+
+** source mask
+
+the sequences are padded at the end, and the attention could attend to the paddings.
+the causal mask in the decoder would prevent it from attending to the target paddings,
+but there is nothing to prevent the model from attending to the source paddings.
+ideally the model would learn to ignore the paddings, but it doesn't.
+so when we run a trained model in autoregressive mode with different number of paddings,
+we get different results.
+
+however it can be easily fixed by adding masks for the source sequences.
+it lowers the validation accuracy slightly in the early stage of training.
+the difference in accuracy between the original transformer attention, scaled softmax attention, and squared attention is now reduced.
+but looking at the results, i think scaled softmax is the more reasonable one.
