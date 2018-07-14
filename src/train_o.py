@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 
-trial      = '0'
+trial      = 'o'
 len_cap    = 2**8
 batch_size = 2**6
-ckpt       = None
+ckpt       = 34990
 
 
-from model import Transformer
+from model_o import Transformer
 from os.path import expanduser, join
 from tqdm import tqdm
 from util import PointedIndex
@@ -61,19 +61,18 @@ def trans(path, m= autoreg_valid, src= src_valid, idx= idx_tgt, len_cap= len_cap
             for p in m.pred.eval({m.src: src[i:j], m.tgt: src[i:j,:1], m.len_tgt: len_cap}):
                 print(decode(idx, p), file= f)
 
-# from util_io import encode
-# idx_src = PointedIndex(np.load("trial/data/index_src.npy").item())
-# def auto(s, m= autoreg_valid, idx_src= idx_src, idx_tgt= idx_tgt, len_cap= len_cap):
-#     src = np.array(encode(idx_src, s)).reshape(1, -1)
-#     return decode(idx_tgt, m.pred.eval({m.src: src, m.tgt: src[:,:1], m.len_tgt: len_cap})[0])
+from util_io import encode
+idx_src = PointedIndex(np.load("trial/data/index_src.npy").item())
+def auto(s, m= autoreg_valid, idx_src= idx_src, idx_tgt= idx_tgt, len_cap= len_cap):
+    src = np.array(encode(idx_src, s)).reshape(1, -1)
+    return decode(idx_tgt, m.pred.eval({m.src: src, m.tgt: src[:,:1], m.len_tgt: len_cap})[0])
 
 ##################
 # training model #
 ##################
 
-model_train = model.data(*batch((src_train, tgt_train), batch_size), len_cap)
-forcing_train = model_train.forcing().train(warmup= epoch)
-autoreg_train = model_train.autoreg().train(warmup= epoch)
+# model_train = model.data(*batch((src_train, tgt_train), batch_size), len_cap)
+# forcing_train = model_train.forcing().train(warmup= epoch)
 
 ############
 # training #
@@ -81,28 +80,22 @@ autoreg_train = model_train.autoreg().train(warmup= epoch)
 
 saver = tf.train.Saver(max_to_keep= None)
 sess = tf.InteractiveSession()
-wtr = tf.summary.FileWriter(join(logdir, "{}".format(trial)))
+# wtr = tf.summary.FileWriter(join(logdir, "{}".format(trial)))
 
 if ckpt:
     saver.restore(sess, "trial/model/{}{}".format(trial, ckpt))
 else:
     tf.global_variables_initializer().run()
 
-step_eval = epoch // 32
-summ = tf.summary.merge(
-    (tf.summary.scalar('step_loss', autoreg_valid.loss)
-     , tf.summary.scalar('step_acc', autoreg_valid.acc)))
+# step_eval = epoch // 8
+# summ = tf.summary.merge(
+#     (tf.summary.scalar('step_loss', forcing_valid.loss)
+#      , tf.summary.scalar('step_acc', forcing_valid.acc)))
 
-forc = lambda: sess.run(forcing_train.up)
-bptt = lambda: sess.run(autoreg_train.up)
-def auto():
-    s, g, p = sess.run(        (autoreg_train.src,    autoreg_train.gold,    autoreg_train.prob))
-    sess.run(forcing_train.up, {forcing_train.src: s, forcing_train.gold: g, forcing_train.tgt_prob: p})
-
-while True:
-    for _ in tqdm(range(epoch), ncols= 70):
-        # pick a training fn to run
-        step = sess.run(forcing_train.step)
-        if not step % step_eval: wtr.add_summary(sess.run(summ), step)
-    saver.save(sess, "trial/model/{}{}".format(trial, step), write_meta_graph= False)
-    trans("trial/pred/{}{}".format(trial, step))
+# for _ in range(18):
+#     for _ in tqdm(range(epoch), ncols= 70):
+#         sess.run(forcing_train.up)
+#         step = sess.run(forcing_train.step)
+#         if not step % step_eval: wtr.add_summary(sess.run(summ), step)
+#     saver.save(sess, "trial/model/{}{}".format(trial, step), write_meta_graph= False)
+#     trans("trial/pred/{}{}".format(trial, step))

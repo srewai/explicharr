@@ -54,7 +54,7 @@ class EncodeBlock(Record):
 
     def __call__(self, x, mask, dropout, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask, softmax= True)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
@@ -74,7 +74,7 @@ class DecodeBlock(Record):
 
     def __call__(self, x, v, w, m, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m) + self.csl(x, v, mask)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m, softmax= True) + self.csl(x, v, mask, softmax= True)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 

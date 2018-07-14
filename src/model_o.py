@@ -1,5 +1,4 @@
 from util import Record, identity
-from util_tf import QueryAttention as Attention
 from util_tf import tf, placeholder, Normalize, Smooth, Dropout, Linear, Affine, Forward
 import numpy as np
 
@@ -40,62 +39,23 @@ class Sinusoid(Record):
             return sinusoid(time, self.dim) if self.pos is None else self.pos[:time]
 
 
+# original transformer
+from util_tf import TransformerAttention as Attention
 class EncodeBlock(Record):
-
     def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
             with tf.variable_scope('att'):
-                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act)
+                self.att = Attention(dim)
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('fwd'):
                 self.fwd = Forward(dim, dim, dim_mid, act)
                 self.norm_fwd = Normalize(dim)
-
     def __call__(self, x, mask, dropout, name= None):
         with tf.variable_scope(name or self.name):
             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
-
-
-class DecodeBlock(Record):
-
-    def __init__(self, dim, dim_mid, act, name):
-        with tf.variable_scope(name):
-            self.name = name
-            with tf.variable_scope('att'):
-                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act, name= 'causal')
-                self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act)
-                self.norm_att = Normalize(dim)
-            with tf.variable_scope('fwd'):
-                self.fwd = Forward(dim, dim, dim_mid, act)
-                self.norm_fwd = Normalize(dim)
-
-    def __call__(self, x, v, w, m, dropout, mask= None, name= None):
-        with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m) + self.csl(x, v, mask)))
-            with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
-            return x
-
-
-# # original transformer
-# from util_tf import TransformerAttention as Attention
-# class EncodeBlock(Record):
-#     def __init__(self, dim, dim_mid, act, name):
-#         with tf.variable_scope(name):
-#             self.name = name
-#             with tf.variable_scope('att'):
-#                 self.att = Attention(dim)
-#                 self.norm_att = Normalize(dim)
-#             with tf.variable_scope('fwd'):
-#                 self.fwd = Forward(dim, dim, dim_mid, act)
-#                 self.norm_fwd = Normalize(dim)
-#     def __call__(self, x, mask, dropout, name= None):
-#         with tf.variable_scope(name or self.name):
-#             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, x, mask)))
-#             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
-#             return x
 # class DecodeBlock(Record):
 #     def __init__(self, dim, dim_mid, act, name):
 #         with tf.variable_scope(name):
@@ -115,6 +75,22 @@ class DecodeBlock(Record):
 #             with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m)))
 #             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
 #             return x
+class DecodeBlock(Record):
+    def __init__(self, dim, dim_mid, act, name):
+        with tf.variable_scope(name):
+            self.name = name
+            with tf.variable_scope('att'):
+                self.csl = Attention(dim, name= 'causal')
+                self.att = Attention(dim)
+                self.norm_att = Normalize(dim)
+            with tf.variable_scope('fwd'):
+                self.fwd = Forward(dim, dim, dim_mid, act)
+                self.norm_fwd = Normalize(dim)
+    def __call__(self, x, v, w, m, dropout, mask= None, name= None):
+        with tf.variable_scope(name or self.name):
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m) + self.csl(x, v, mask)))
+            with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
+            return x
 
 
 class Transformer(Record):
