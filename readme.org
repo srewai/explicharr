@@ -1,0 +1,60 @@
+* explicharr
+
+sentence simplification with character-level [[https://arxiv.org/abs/1706.03762][transformer]]
+
+** quick start
+
+*** dependencies
+
+- [[https://www.python.org/][python3]]
+- [[https://www.tensorflow.org/][tensorflow]]
+- [[https://www.nltk.org/][nltk]] (if you need the bleu scores)
+
+*** reproduce the results
+
+#+BEGIN_SRC bash :eval no
+cd src
+#+END_SRC
+
+- prepare the data
+
+#+BEGIN_SRC bash :eval no
+mkdir trial trial/data
+./mock.py
+./data.py
+#+END_SRC
+
+- train a new model
+
+#+BEGIN_SRC bash :eval no
+mkdir trial/model trial/pred
+./train.py
+#+END_SRC
+
+by default, these paths are used.
+- =src/trial/model= the model checkpoints
+- =src/trial/pred= the predicted validation outputs
+- =~/cache/tensorboard-logdir/explicharr= [[https://www.tensorflow.org/guide/summaries_and_tensorboard][tensorboard]] summaries for the validation loss and accuracy
+
+** content
+
+- [[data][data]] [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
+- [[docs][docs]] paper and slides
+- [[pred][pred]] output samples
+- [[src][src]] code
+  + [[src/showcase.ipynb][showcase.ipynb]] how to use the model without reading the source code
+  + [[src/mock.py][mock.py]] code for selecting and cleaning data for training and validation
+  + [[src/data.py][data.py]] code for converting data to numpy arrays
+  + [[src/train.py][train.py]] code for training, evaluating, and profiling
+  + [[src/model.py][model.py]] the main implementation
+  + [[src/util*.py][util*.py]] utilities
+  + [[src/bleu.py][bleu.py]] script for evaluating bleu scores
+
+** technical details
+
+these characters are treated with special meanings.
+- =\xa0= non-breaking space, for unknown characters
+- =\x0a= newline, for marking the end of sequence
+- =\x20= space, for token boundries
+
+for more details, see our [[docs/paper/paper.pdf][paper]].
