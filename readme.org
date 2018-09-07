@@ -47,7 +47,7 @@ by default, these paths are used.
   + [[src/data.py][data.py]]: code for converting data to numpy arrays
   + [[src/train.py][train.py]]: code for training, evaluating, and profiling
   + [[src/model.py][model.py]]: the main implementation
-  + =util*.py=: utilities
+  + =util*.py=: various utilities
   + [[src/bleu.py][bleu.py]]: script for evaluating bleu scores
 
 ** technical details
