@@ -10,7 +10,7 @@ sentence simplification with character-level [[https://arxiv.org/abs/1706.03762]
 - [[https://www.tensorflow.org/][tensorflow]]
 - [[https://www.nltk.org/][nltk]] (if you need the bleu scores)
 
-*** reproduce the results
+*** to reproduce our results
 
 #+BEGIN_SRC bash :eval no
 cd src
@@ -38,17 +38,17 @@ by default, these paths are used.
 
 ** content
 
-- [[data][data]] [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
-- [[docs][docs]] paper and slides
-- [[pred][pred]] output samples
-- [[src][src]] code
-  + [[src/showcase.ipynb][showcase.ipynb]] how to use the model without reading the source code
-  + [[src/mock.py][mock.py]] code for selecting and cleaning data for training and validation
-  + [[src/data.py][data.py]] code for converting data to numpy arrays
-  + [[src/train.py][train.py]] code for training, evaluating, and profiling
-  + [[src/model.py][model.py]] the main implementation
-  + [[src/util*.py][util*.py]] utilities
-  + [[src/bleu.py][bleu.py]] script for evaluating bleu scores
+- [[data][data]]: [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
+- [[docs][docs]]: paper and slides
+- [[pred][pred]]: output samples
+- [[src][src]]: code
+  + [[src/showcase.ipynb][showcase.ipynb]]: how to use the model without reading the source code
+  + [[src/mock.py][mock.py]]: code for selecting and cleaning data for training and validation
+  + [[src/data.py][data.py]]: code for converting data to numpy arrays
+  + [[src/train.py][train.py]]: code for training, evaluating, and profiling
+  + [[src/model.py][model.py]]: the main implementation
+  + =util*.py=: utilities
+  + [[src/bleu.py][bleu.py]]: script for evaluating bleu scores
 
 ** technical details
 
