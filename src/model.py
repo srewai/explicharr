@@ -64,8 +64,10 @@ class DecodeBlock(Record):
     def __init__(self, dim, dim_mid, act, name):
         with tf.variable_scope(name):
             self.name = name
+            with tf.variable_scope('csl'):
+                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act)
+                self.norm_csl = Normalize(dim)
             with tf.variable_scope('att'):
-                self.csl = Attention(dim, layer= Forward, mid= dim_mid, act= act, name= 'causal')
                 self.att = Attention(dim, layer= Forward, mid= dim_mid, act= act)
                 self.norm_att = Normalize(dim)
             with tf.variable_scope('fwd'):
@@ -74,7 +76,8 @@ class DecodeBlock(Record):
 
     def __call__(self, x, v, w, m, dropout, mask= None, name= None):
         with tf.variable_scope(name or self.name):
-            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m) + self.csl(x, v, mask)))
+            with tf.variable_scope('csl'): x = self.norm_csl(x + dropout(self.csl(x, v, mask)))
+            with tf.variable_scope('att'): x = self.norm_att(x + dropout(self.att(x, w, m)))
             with tf.variable_scope('fwd'): x = self.norm_fwd(x + dropout(self.fwd(x)))
             return x
 
@@ -168,7 +171,7 @@ class Transformer(Record):
             , emb_tgt= emb_tgt, decode= decode
             , logit= emb_tgt.transpose('logit') if logit_share_embedding else Affine(dim_tgt, dim, 'logit')
             , smooth= Smooth(smooth, dim_tgt)
-            , dropout= Dropout(dropout, (None, 1, dim)))
+            , dropout= Dropout(dropout, (None, None, dim)))
 
     def data(self, src= None, tgt= None, len_cap= None):
         """-> Transformer with new fields
