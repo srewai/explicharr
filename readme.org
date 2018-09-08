@@ -32,15 +32,15 @@ mkdir trial/model trial/pred
 #+END_SRC
 
 by default, these paths are used.
-- =src/trial/model= the model checkpoints
-- =src/trial/pred= the predicted validation outputs
-- =~/cache/tensorboard-logdir/explicharr= [[https://www.tensorflow.org/guide/summaries_and_tensorboard][tensorboard]] summaries for the validation loss and accuracy
+- =src/trial/model= for model checkpoints
+- =src/trial/pred= for predicted validation outputs
+- =~/cache/tensorboard-logdir/explicharr= for [[https://www.tensorflow.org/guide/summaries_and_tensorboard][tensorboard]] summaries
 
 ** content
 
-- [[data][data]]: [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
 - [[docs][docs]]: paper and slides
 - [[pred][pred]]: output samples
+- [[data][data]]: [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
 - [[src][src]]: code
   + [[src/showcase.ipynb][showcase.ipynb]]: how to use the model without reading the source code
   + [[src/mock.py][mock.py]]: code for selecting and cleaning data for training and validation
@@ -52,9 +52,9 @@ by default, these paths are used.
 
 ** technical details
 
-these characters are treated with special meanings.
+these characters are treated with special meanings
 - =\xa0= non-breaking space, for unknown characters
 - =\x0a= newline, for marking the end of sequence
 - =\x20= space, for token boundries
 
-for more details, see our [[docs/paper/paper.pdf][paper]].
+for more details, see our [[docs/paper/paper.pdf][paper]]
