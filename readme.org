@@ -31,16 +31,16 @@ mkdir trial/model trial/pred
 ./train.py
 #+END_SRC
 
-by default, these paths are used.
+by default, these paths are used
 - =src/trial/model= for model checkpoints
 - =src/trial/pred= for predicted validation outputs
-- =~/cache/tensorboard-logdir/explicharr= for [[https://www.tensorflow.org/guide/summaries_and_tensorboard][tensorboard]] summaries
+- =~/cache/tensorboard-logdir/explicharr= for tensorboard summaries
 
 ** content
 
 - [[docs][docs]]: paper and slides
 - [[pred][pred]]: output samples
-- [[data][data]]: [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences from simple and standard english wikipedia]]
+- [[data][data]]: [[http://ssli.ee.washington.edu/tial/projects/simplification/][aligned sentences]]
 - [[src][src]]: code
   + [[src/showcase.ipynb][showcase.ipynb]]: how to use the model without reading the source code
   + [[src/mock.py][mock.py]]: code for selecting and cleaning data for training and validation
