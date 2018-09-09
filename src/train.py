@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-trial      = '0'
+trial      = 'm'
 len_cap    = 2**8
 batch_size = 2**6
 ckpt       = None
@@ -72,14 +72,20 @@ def trans(path, m= autoreg_valid, src= src_valid, idx= idx_tgt, len_cap= len_cap
 ##################
 
 model_train = model.data(*batch((src_train, tgt_train), batch_size), len_cap)
-forcing_train = model_train.forcing().train(warmup= epoch)
-autoreg_train = model_train.autoreg().train(warmup= epoch)
+forcing_train = model_train.forcing().train()
+
+# # bptt training and free running
+# autoreg_train = model_train.autoreg().train(warmup= epoch)
+# bptt = lambda: sess.run(autoreg_train.up)
+# def auto():
+#     s, g, p = sess.run(        (autoreg_train.src,    autoreg_train.gold,    autoreg_train.prob))
+#     sess.run(forcing_train.up, {forcing_train.src: s, forcing_train.gold: g, forcing_train.tgt_prob: p})
 
 ############
 # training #
 ############
 
-saver = tf.train.Saver(max_to_keep= None)
+saver = tf.train.Saver()
 sess = tf.InteractiveSession()
 wtr = tf.summary.FileWriter(join(logdir, "{}".format(trial)))
 
@@ -88,20 +94,14 @@ if ckpt:
 else:
     tf.global_variables_initializer().run()
 
-step_eval = epoch // 32
+step_eval = epoch // 8
 summ = tf.summary.merge(
-    (tf.summary.scalar('step_loss', autoreg_valid.loss)
-     , tf.summary.scalar('step_acc', autoreg_valid.acc)))
+    (tf.summary.scalar('step_loss', forcing_valid.loss)
+     , tf.summary.scalar('step_acc', forcing_valid.acc)))
 
-forc = lambda: sess.run(forcing_train.up)
-bptt = lambda: sess.run(autoreg_train.up)
-def auto():
-    s, g, p = sess.run(        (autoreg_train.src,    autoreg_train.gold,    autoreg_train.prob))
-    sess.run(forcing_train.up, {forcing_train.src: s, forcing_train.gold: g, forcing_train.tgt_prob: p})
-
-while True:
-    for _ in tqdm(range(epoch), ncols= 70):
-        # pick a training fn to run
+for _ in range(15):
+    for _ in tqdm(range(12 * epoch), ncols= 70):
+        sess.run(forcing_train.up)
         step = sess.run(forcing_train.step)
         if not step % step_eval: wtr.add_summary(sess.run(summ), step)
     saver.save(sess, "trial/model/{}{}".format(trial, step), write_meta_graph= False)
