@@ -40,7 +40,7 @@ t: On July 24 , it was announced that the baby would be called Prince George of 
 p: Their first child , Prince George of Cambridge , was born on July 22 , 2013 .
 #+END_EXAMPLE
 
-it tried to produce normal sentences.
+it tries to produce normal sentences.
 
 #+BEGIN_EXAMPLE
 s: is a 1982 arcade-style platform video game by Nintendo .
