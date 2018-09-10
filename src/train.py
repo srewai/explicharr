@@ -77,7 +77,7 @@ forcing_train = model_train.forcing().train()
 # # bptt training and free running
 # autoreg_train = model_train.autoreg().train(warmup= epoch)
 # bptt = lambda: sess.run(autoreg_train.up)
-# def auto():
+# def free():
 #     s, g, p = sess.run(        (autoreg_train.src,    autoreg_train.gold,    autoreg_train.prob))
 #     sess.run(forcing_train.up, {forcing_train.src: s, forcing_train.gold: g, forcing_train.tgt_prob: p})
 
