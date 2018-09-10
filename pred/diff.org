@@ -1,0 +1,166 @@
+selected examples from the validation set.
+
+- =s:= for source sentences
+- =t:= for target sentences
+- =p:= for predicted sentences
+
+text normalization: period out of quotes
+
+#+BEGIN_EXAMPLE
+s: Punch 's wife was originally called `` Joan . ''
+t: Punch 's wife was originally `` Joan '' .
+p: Punch 's wife was originally called `` Joan '' .
+#+END_EXAMPLE
+
+text normalization: bracketing
+
+#+BEGIN_EXAMPLE
+s: Buddha-Bhagavan ) .
+t: Buddhists believe there have been many Buddhas who were alone , called pacceka-buddhas .
+p: Buddha-Bhagavan .
+
+s: Edo ( 江戸 ?
+t: Edo ( 江戸 ? )
+p: Edo (    ? )
+#+END_EXAMPLE
+
+text normalization: unknown characters
+
+#+BEGIN_EXAMPLE
+s: The enshrined kami is Isonotakeru no mikoto ( 五十猛命 ? )
+t: This place is special to the kami named Isonotakeru no mikoto ( 五十猛命 ? )
+p: The enshrined kami is Isonotakeru no mikoto (      ? )
+#+END_EXAMPLE
+
+text normalization: dates
+
+#+BEGIN_EXAMPLE
+s: Their first child , Prince George of Cambridge , was born on 22 July 2013 .
+t: On July 24 , it was announced that the baby would be called Prince George of Cambridge , with the full given name George Alexander Louis .
+p: Their first child , Prince George of Cambridge , was born on July 22 , 2013 .
+#+END_EXAMPLE
+
+it tried to produce normal sentences.
+
+#+BEGIN_EXAMPLE
+s: is a 1982 arcade-style platform video game by Nintendo .
+t: Donkey Kong Jr. is an arcade video game made by Nintendo in 1982 .
+p: In 1982 , the style platform video game by Nintendo .
+
+s: reflects the influence of the sexagenary cycle as a count of years .
+t: Ancient records show that the sexagenary cycle was used to count years in the 3rd century B.C. .
+p: The influence of the sexagenary cycle as a count of years .
+
+s: ( It is used in all of the Star Wars and Indiana Jones movies . )
+t: It is used in all of the Indiana Jones movies .
+p: It is used in all of the Star Wars and Indiana Jones movies .
+#+END_EXAMPLE
+
+when it doesn't know how,
+it produces a trivial sentence.
+
+#+BEGIN_EXAMPLE
+s: and Mario 's Time Machine .
+t: In the Dr. Mario games first seen in 1990 , Mario is a doctor .
+p: The machine is a machine .
+
+s: and Airplane II : The Sequel .
+t: ( 1980 ) and Airplane II : The Sequel ( 1982 ) .
+p: The Sequel is a sequel .
+#+END_EXAMPLE
+
+or try to make sense of the parts it doesn't understand.
+
+#+BEGIN_EXAMPLE
+s: and it is because they do n't understand what Parkour is ; ` Who is the best ? '
+t: Star Jumping Parkour does involve risks and many people get injured every day .
+p: They are the best ?
+
+s: It is officially known as Avtomat Kalashnikova ( Russian : Автомат Калашникова ) .
+t: The letters AK stand for Avtomat Kalashnikova , which is Russian for Kalashnikov 's Automatic Rifle .
+p: It is known as Avtomat Kalashnikova ( Russian : : 1950 : 1998 ) .
+#+END_EXAMPLE
+
+it tends to remove the beginning of a sentence.
+
+#+BEGIN_EXAMPLE
+s: With one huge blow from his olive-wood club , Hercules killed the watchdog .
+t: Herakles killed her .
+p: Hercules killed the watchdog .
+
+s: For example , the speed of sound in gases depends on temperature .
+t: Loudness depends on sound intensity , sound frequency , and the person 's hearing .
+p: The speed of sound in gases depends on temperature .
+
+s: In it , Goldilocks is re-imagined as a girl in her 20s .
+t: She finally became Goldilocks sometime in the early 20th century .
+p: Goldilocks is re-imagined as a girl in her 20s .
+#+END_EXAMPLE
+
+but not always
+
+#+BEGIN_EXAMPLE
+s: In 2008 , she starred in the comedy film Baby Mama , alongside former SNL co-star Amy Poehler .
+t: In 2008 , she starred in the comedy movie Baby Mama , with Amy Poehler .
+p: In 2008 , she starred in the comedy movie Baby Mama , alongside former SNL co-star Amy Poehler .
+#+END_EXAMPLE
+
+it may also remove parts in the middle.
+
+#+BEGIN_EXAMPLE
+s: The spines , which may be up to 50 mm ( 2 in ) long , are modified hairs , mostly made of keratin .
+t: The spines , which may be up to 50 mm long , are modified hairs , mostly made of keratin .
+p: The spines , which may be up to 50 mm long , are modified hairs , mostly made of keratin .
+
+s: Sodium iodate ( NaIO3 ) is the sodium salt of iodic acid .
+t: Sodium iodate is a chemical compound .
+p: Sodium iodate is the sodium salt of iodic acid .
+
+s: The palate / ˈpælɨt / is the roof of the mouth in humans and other mammals .
+t: The palate is the roof of the mouth in humans and other mammals .
+p: The palate is the roof of the mouth in humans and other mammals .
+#+END_EXAMPLE
+
+and it may remove some words.
+
+#+BEGIN_EXAMPLE
+s: It is located in the Market Square , Aylesbury , Buckinghamshire .
+t: The King 's Head is a National Trust property in Aylesbury , Buckinghamshire , England , UK .
+p: It is in the Market Square , Aylesbury , Buckinghamshire .
+
+s: Home Alone received mixed reviews from film critics .
+t: Home Alone 3 ( 1997 ) and Home Alone 5 : The Holiday Heist ( 2012 ) have completely different characters and actors .
+p: Home Alone received mixed reviews from critics .
+#+END_EXAMPLE
+
+or add some words.
+
+#+BEGIN_EXAMPLE
+s: However , low frequency also causes noticeable flicker in arc lamps and incandescent light bulbs .
+t: This happens so fast that a light bulb does not stop glowing .
+p: The low frequency also causes noticeable flicker in arc lamps and incandescent light bulbs .
+#+END_EXAMPLE
+
+or replace them.
+
+#+BEGIN_EXAMPLE
+s: In the film 's story the location was named as Footscray station .
+t: In the movie it was called Footscray station .
+p: In the movie 's story the location was named as Footscray station .
+#+END_EXAMPLE
+
+it sucks at math.
+
+#+BEGIN_EXAMPLE
+s: For example , 2 + 3 = 3 + 2 = 5 and 2 · 3 = 3 · 2 = 6 , but 23 = 8 , whereas 32 = 9 .
+t: Then people write powers using the ^ sign : 2 ^ 3 means .
+p: For example , 2 + 3 = 3 = 3 = 3 = 3 = 3 = 3 = 3 , whereas 32 = 9 .
+#+END_EXAMPLE
+
+it can get really confused.
+
+#+BEGIN_EXAMPLE
+s: 1 and − 1 divide ( are divisors of ) every integer .
+t: For example , if the last digit is even ( 0 , 2 , 4 , 6 or 8 ) , then 2 is a divisor .
+p: In the 19th century , the state of the state of the state of the state of the state of the state of the state .
+#+END_EXAMPLE
