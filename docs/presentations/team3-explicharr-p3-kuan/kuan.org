@@ -175,8 +175,8 @@ attention: \(\textcolor{red}{\downarrow}\quad\bullet\quad\textcolor{blue}{\downa
 \end{figure}
 \vspace*{-5ex}
 \begin{align*}
-  A \cdot B &= AB\\
-  A \cdot^{T} B &= A^{T}B\\
+  A \cdot B &:= AB\\
+  A \cdot^{T} B &:= A^{T}B\\
 \end{align*}
 #+END_EXPORT
 ** transformer attention                                            :B_frame:
