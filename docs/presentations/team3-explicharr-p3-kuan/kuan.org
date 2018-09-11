@@ -1,0 +1,451 @@
+#+TITLE: Technical details of explicharr
+#+AUTHOR: Kuan Yu
+#+EMAIL: kuanyu@uni-potsdam.de
+#+DATE: \today
+#+OPTIONS: title:t author:t email:t date:t toc:nil
+#+STARTUP: beamer
+#+LaTeX_CLASS: beamer
+#+LATEX_HEADER: \setbeamertemplate{footline}[frame number]
+#+LATEX_HEADER: \usepackage{subcaption}
+#+LATEX_HEADER: \usepackage{xeCJK}
+#+LATEX_HEADER: \usepackage{tikz-cd}
+#+LATEX_HEADER: \usetikzlibrary{decorations.pathmorphing}
+#+LATEX_HEADER: \DeclareMathOperator{\softmax}{softmax}
+#+LATEX_HEADER: \DeclareMathOperator{\relu}{relu}
+* explicharr
+** explicharr[fn:1]                                                 :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- sentence simplification with
+- character-level
+- transformer[fn:2]
+\vfill
+``It is located in Potsdam .'' \(\quad\longmapsto\quad\) ``It is in Potsdam .''
+\vfill
+*** model: \(S^{\ast} \to T^{\ast}\) where                          :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- \(S\) = the source alphabet
+- \(T\) = the target alphabet
+** encoder-decoder, seq-to-seq, autoregressive                      :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \centering
+  \begin{tikzcd}[sep=large, nodes={inner sep=1em}]
+    &\hat{T}^{\ast}_{i+1}\\
+    \lbrack\quad R^{\ast}_{0}\quad R^{\ast}_{1}\quad \ldots\quad R^{\ast}_{j} \quad\rbrack \ar[mapsto]{r}{\textrm{summarize}} & Q^{\ast}_{i} \ar[mapsto, swap]{u}{\textrm{decode}}\\
+    \lbrack\quad S^{\ast}_{0}\quad S^{\ast}_{1}\quad \ldots\quad S^{\ast}_{j} \quad\rbrack \ar[mapsto]{u}{\textrm{encode}} &\lbrack\quad T^{\ast}_{0}\quad T^{\ast}_{1}\quad \ldots\quad T^{\ast}_{i}\quad\rbrack \ar[mapsto, swap]{u}{\textrm{summarize}}\\
+  \end{tikzcd}
+\end{figure}
+#+END_EXPORT
+* attention
+** soft attention                                                   :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+given a \textcolor{red}{query} vector and multiple \textcolor{blue}{value} vectors
+\vfill
+attention: \(\textcolor{red}{\downarrow}\quad\bullet\quad\textcolor{blue}{\downarrow\downarrow\ldots\downarrow}\quad\longmapsto\quad\textcolor{violet}{\downarrow}\)
+\vfill
+- compute a weight for each value, according to the query
+- normalize the weights with softmax
+- take the weighted sum of the values
+** transformer                                                      :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \tikz[overlay]{
+      \draw[green] (-0.05,-1.25) rectangle (1.0,0.75);
+      \draw[green] (2.1,-1.25) rectangle (3.15,1.9);}
+    \begin{tikzcd}[column sep=tiny]
+      &&\hat{T}^{*}_{1 \ldots i+1}\\
+      &&\cdot \ar[violet]{u}\\
+      \cdot \ar[blue]{rr} &&\bullet{} \ar[violet, rightsquigarrow]{u}\\
+      \bullet{} \ar[violet, rightsquigarrow]{u} &&\bullet{} \ar[red]{u}\\
+      + \ar[blue, bend left]{u} \ar[red, bend right]{u} &&+ \ar[blue, bend left]{u} \ar[red, bend right]{u}\\
+      S^{*} \ar[violet]{u} &P \ar[dashed]{ul} \ar[dashed]{ur} & T^{*}_{0 \ldots i} \ar[violet]{u}\\
+    \end{tikzcd}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}[row sep=tiny, column sep=tiny]
+      &&\cdot\\
+      \cdot &&\\
+      &= &\relu \ar[violet]{uu}\\
+      \cdot \ar[violet, rightsquigarrow]{uu} &&\\
+      &&\cdot \ar[violet]{uu}\\
+      &&\\
+      &&\\
+      \bullet{} &= &\textrm{attention}\\
+    \end{tikzcd}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** self-attention[fn:3]                                             :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}[column sep=small]
+      &\hat{x}_{1} &\hat{x}_{2} &\hat{x}_{3}\\
+      &\bullet{} \ar[violet]{u} &\bullet{} \ar[violet]{u} &\bullet{} \ar[violet]{u}\\
+      &x_{0} \ar[red, bend left]{u} \ar[blue]{u} \ar[blue]{ur} \ar[blue]{urr} &x_{1} \ar[red, bend left]{u} \ar[blue]{u} \ar[blue]{ur} \ar[blue]{ul} &x_{2} \ar[red, bend left]{u} \ar[blue]{u} \ar[blue]{ul} \ar[blue]{ull}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{encoder self-attention}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}[column sep=small]
+      &\hat{x}_{1} &\hat{x}_{2} &\hat{x}_{3}\\
+      &\bullet{} \ar[violet]{u} &\bullet{} \ar[violet]{u} &\bullet{} \ar[violet]{u}\\
+      &x_{0} \ar[red, bend left]{u} \ar[blue]{u} \ar[blue]{ur} \ar[blue]{urr} &x_{1} \ar[red, bend left]{u} \ar[blue]{u} \ar[blue]{ur} &x_{2} \ar[red, bend left]{u} \ar[blue]{u}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{decoder self-attention}
+  \end{subfigure}
+\end{figure}
+\vspace*{-2ex}
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}[column sep=small, row sep=small]
+      &\hat{x}_{1} &\hat{x}_{2} &\hat{x}_{3}\\
+      &+ \ar[violet]{u} &+ \ar[violet]{u} &+ \ar[violet]{u}\\
+      \ar[red]{ur} &x_{0} \ar[blue]{u} \ar[red]{ur} &x_{1} \ar[blue]{u} \ar[red]{ur} &x_{2} \ar[blue]{u}\\
+    \end{tikzcd}
+    \vspace*{-2ex}
+    \caption*{convolutional}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}[column sep=small, row sep=small]
+      &\hat{x}_{1} &\hat{x}_{2} &\hat{x}_{3}\\
+      \ar[red]{r} &\bullet{} \ar[violet]{u} \ar[red]{r} &\bullet{} \ar[violet]{u} \ar[red]{r} &\bullet{} \ar[violet]{u}\\
+      &x_{0} \ar[blue]{u} &x_{1} \ar[blue]{u} &x_{2} \ar[blue]{u}\\
+    \end{tikzcd}
+    \vspace*{-2ex}
+    \caption*{recurrent}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** attention cells: additive[fn:4] vs dot-product[fn:5], key-value[fn:6] :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      wt \cdot t \ar[violet, swap]{u}{vw} &t \ar[swap]{l}{\softmax}\\
+      vt \ar[blue]{u}{\textrm{value}}[swap]{wv} \ar[blue]{r}{kv}[swap]{\textrm{key}} &kt + k \ar[rightsquigarrow, swap]{u}{\textrm{MLP}} &q \ar[red]{l}{\textrm{query}}[swap]{kq}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{additive}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      wt \cdot t \ar[violet, swap]{u}{vw} &&\\
+      vt \ar[blue]{u}{\textrm{value}}[swap]{wv} \ar[blue]{r}{kv}[swap]{\textrm{key}} &kt \cdot^{T} k \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{kq}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{dot-product}
+  \end{subfigure}
+  \caption*{dimensions: \textbf{t}ime, \textbf{q}uery, \textbf{k}ey, \textbf{v}alue, \textbf{w} intermediate}
+\end{figure}
+\vspace*{-5ex}
+\begin{align*}
+  A \cdot B &= AB\\
+  A \cdot^{T} B &= A^{T}B\\
+\end{align*}
+#+END_EXPORT
+** transformer attention                                            :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+*** scaled dot-product                                              :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- divide weights by \(\sqrt{k}\) before applying \(\softmax\)
+- raise temperature
+- lower variance
+*** multi-head attention                                            :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- split spaces (query, value, key) into disjoint subspaces (subquery, subvalue, subkey)
+- one attention head for each split
+- concatenate the resulting subvectors
+* new design
+** key transformation                                               :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      wt \cdot t \ar[violet, swap]{u}{vw} &&\\
+      vt \ar[blue]{u}{\textrm{value}}[swap]{wv} \ar[blue]{r}{kv}[swap]{\textrm{key}} &kt \cdot^{T} k \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{kq}\\
+    \end{tikzcd}
+    \caption*{linear}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      wt \cdot t \ar[violet, swap]{u}{vw} &&\\
+      vt \ar[blue]{u}{\textrm{value}}[swap]{wv} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{kv \cdot^{T} kq}\\
+    \end{tikzcd}
+    \caption*{identity}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** value transformation                                             :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      wt \cdot t \ar[violet, swap]{u}{vw} &&\\
+      vt \ar[blue]{u}{\textrm{value}}[swap]{wv} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{vq}\\
+    \end{tikzcd}
+    \caption*{linear}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      vt \cdot t \ar[violet, swap]{u}{vw \cdot wv} &&\\
+      vt \ar[blue, dashed]{u} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{vq}\\
+    \end{tikzcd}
+    \caption*{identity}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** query transformation                                             :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      vt \cdot t \ar[violet, swap]{u}{vv} &&\\
+      vt \ar[blue, dashed]{u} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red]{l}{\textrm{query}}[swap]{vq}\\
+    \end{tikzcd}
+    \caption*{linear}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      vt \cdot t \ar[violet, swap]{u}{vv} &&\\
+      vt \ar[blue, dashed]{u} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red, rightsquigarrow]{l}{\textrm{query}}[swap]{\textrm{MLP}}\\
+    \end{tikzcd}
+    \caption*{non-linear}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** additive vs dot-product with non-linear query                    :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      vt \cdot t \ar[violet, swap]{u}{vv} &t \ar[swap]{l}{\softmax}\\
+      vt \ar[blue, dashed]{u} \ar[blue]{r}{kv}[swap]{\textrm{value}} &kt + k \ar[rightsquigarrow, swap]{u}{\textrm{MLP}} &q \ar[red]{l}{\textrm{query}}[swap]{kq}\\
+    \end{tikzcd}
+    \caption*{additive}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \begin{tikzcd}
+      v &&\\
+      vt \cdot t \ar[violet, swap]{u}{vv} &&\\
+      vt \ar[blue, dashed]{u} \ar[blue, dashed]{r} &vt \cdot^{T} v \ar[swap]{ul}{\softmax} &q \ar[red, rightsquigarrow]{l}{\textrm{query}}[swap]{\textrm{MLP}}\\
+    \end{tikzcd}
+    \caption*{dot-product}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** transformer                                                      :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:BEAMER_opt: fragile
+:END:
+#+BEGIN_EXPORT latex
+\begin{figure}
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \tikz[overlay]{
+      \draw[green] (-0.05,-1.25) rectangle (1.0,0.75);
+      \draw[green] (2.1,-1.25) rectangle (3.15,1.9);}
+    \begin{tikzcd}[column sep=tiny]
+      &&\hat{T}^{*}_{1 \ldots i+1}\\
+      &&\cdot \ar[violet]{u}\\
+      \cdot \ar[blue]{rr} &&\bullet{} \ar[violet, rightsquigarrow]{u}\\
+      \bullet{} \ar[violet, rightsquigarrow]{u} &&\bullet{} \ar[red]{u}\\
+      + \ar[blue, bend left]{u} \ar[red, bend right]{u} &&+ \ar[blue, bend left]{u} \ar[red, bend right]{u}\\
+      S^{*} \ar[violet]{u} &P \ar[dashed]{ul} \ar[dashed]{ur} & T^{*}_{0 \ldots i} \ar[violet]{u}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{old}
+  \end{subfigure}%
+  \begin{subfigure}{0.5\textwidth}
+    \centering
+    \tikz[overlay]{
+      \draw[green] (-0.05,-1.25) rectangle (1.0,0.75);
+      \draw[green] (2.1,-1.25) rectangle (3.15,1.9);}
+    \begin{tikzcd}[column sep=tiny]
+      &&\hat{T}^{*}_{1 \ldots i+1}\\
+      &&\cdot \ar[violet]{u}\\
+      \cdot \ar[blue, dashed]{rr} &&\bullet{} \ar[violet, rightsquigarrow]{u}\\
+      \bullet{} \ar[violet, rightsquigarrow]{u} &&\bullet{} \ar[red, rightsquigarrow]{u}\\
+      + \ar[blue, dashed, bend left]{u} \ar[red, rightsquigarrow, bend right]{u} &&+ \ar[blue, dashed, bend left]{u} \ar[red, rightsquigarrow, bend right]{u}\\
+      S^{*} \ar[violet]{u} &P \ar[dashed]{ul} \ar[dashed]{ur} & T^{*}_{0 \ldots i} \ar[violet]{u}\\
+    \end{tikzcd}
+    \vspace*{-4ex}
+    \caption*{new}
+  \end{subfigure}
+\end{figure}
+#+END_EXPORT
+** architecture                                                     :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- 2 encoder layers, 2 decoder layers
+- 2 input embedding layers, 1 output softmax layer
+- 256 representation dimension, 512 relu in MLPs
+- single-head scaled dot-product attention
+- dropout[fn:8], residual connection[fn:9], layer normalization[fn:10] after each attention or MLP sublayer
+** training                                                         :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- cross entropy loss with label smoothing[fn:7]
+- teacher forcing
+- batch size 64
+- ~6 minutes per epoch (~223k instances)
+- for 180 epochs
+* introspection
+** introspection                                                    :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+- greedy autoregressive decoding
+- attention weight matrix
+*** self-attention                                                  :B_block:
+:PROPERTIES:
+:BEAMER_env: block
+:END:
+- always a diagonal line
+- encoder layer 1 and decoder layer 2 slightly fuzzy
+** introspection: normal                                            :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\small =The enshrined kami is Isonotakeru no mikoto ( 五十猛命 ? )=\\
+\vspace{1em} =The enshrined kami is Isonotakeru no mikoto ( ____ ? )=
+#+BEGIN_EXPORT latex
+\begin{figure}
+\centering
+\includegraphics[height=0.5\textheight,page=1]{plot.pdf}
+\end{figure}
+#+END_EXPORT
+** introspection: skip                                              :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\small =Sodium iodate ( NaIO3 ) is the sodium salt of iodic acid .=\\
+\vspace{1em} =Sodium iodate is the sodium salt of iodic acid .=
+#+BEGIN_EXPORT latex
+\begin{figure}
+\centering
+\includegraphics[height=0.5\textheight,page=2]{plot.pdf}
+\end{figure}
+#+END_EXPORT
+** introspection: swap :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\small =Their first child , Prince George of Cambridge , was born on 22 July 2013 .=\\
+\vspace{1em} =Their first child , Prince George of Cambridge , was born on July 22 , 2013 .=
+#+BEGIN_EXPORT latex
+\begin{figure}
+\centering
+\includegraphics[height=0.5\textheight,page=3]{plot.pdf}
+\end{figure}
+#+END_EXPORT
+** introspection: confused                                          :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\small =For example , 2 + 3 = 3 + 2 = 5 and 2 · 3 = 3 · 2 = 6 , but 23 = 8 , whereas 32 = 9 .=\\
+\vspace{1em} =For example , 2 + 3 = 3 = 3 = 3 = 3 = 3 = 3 = 3 , whereas 32 = 9 .=
+#+BEGIN_EXPORT latex
+\begin{figure}
+\centering
+\includegraphics[height=0.5\textheight,page=4]{plot.pdf}
+\end{figure}
+#+END_EXPORT
+** introspection: really confused                                   :B_frame:
+:PROPERTIES:
+:BEAMER_env: frame
+:END:
+\small =1 and − 1 divide ( are divisors of ) every integer .=\\
+\vspace{1em} =In the 19th century , the state of the state of the state of the state of the state of the state of the state .=
+#+BEGIN_EXPORT latex
+\begin{figure}
+\centering
+\includegraphics[height=0.5\textheight,page=5]{plot.pdf}
+\end{figure}
+#+END_EXPORT
+* Footnotes
+[fn:1] https://github.com/srewai/explicharr
+[fn:2] https://arxiv.org/abs/1706.03762
+[fn:3] https://arxiv.org/abs/1606.01933
+[fn:4] https://arxiv.org/abs/1409.0473
+[fn:5] https://arxiv.org/abs/1508.04025
+[fn:6] https://arxiv.org/abs/1702.04521
+[fn:7] https://arxiv.org/abs/1512.00567
+[fn:8] http://jmlr.org/papers/v15/srivastava14a.html
+[fn:9] https://arxiv.org/abs/1512.03385
+[fn:10] https://arxiv.org/abs/1607.06450
